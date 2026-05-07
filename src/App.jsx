@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { AuthProvider, useAuth } from './auth.jsx'
-import { searchDrugs, DEMO_OCR_RESULT, DRUGS } from './data.js'
+import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions } from './data.js'
 
 const C = {
   primary:'#1a73e8', primaryDk:'#1558b0', success:'#34a853',
@@ -35,7 +35,6 @@ function LockedFeature({minRole,children}){
   )
 }
 
-// ── Low-confidence warning banner ── NEW (F05)
 function LowConfWarning({score,name}){
   if(score>=LOW_CONF) return null
   return(
@@ -52,7 +51,6 @@ function LowConfWarning({score,name}){
   )
 }
 
-// ── Report Error modal ── NEW (SRS Screen 2)
 function ReportModal({drug,onClose}){
   const [reason,setReason]=useState('')
   const [sent,setSent]=useState(false)
@@ -90,7 +88,6 @@ function ReportModal({drug,onClose}){
   )
 }
 
-// ── Login Modal
 function LoginModal({onClose}){
   const {login,error,setError}=useAuth()
   const [u,setU]=useState(''); const [p,setP]=useState(''); const [loading,setLoading]=useState(false)
@@ -133,8 +130,7 @@ function LoginModal({onClose}){
   )
 }
 
-// ── NavBar
-function NavBar({showLogin}){
+function NavBar({showLogin,nhiCount}){
   const {user,logout}=useAuth()
   return(
     <div style={{background:C.primary,padding:'0 20px',display:'flex',alignItems:'center',
@@ -143,7 +139,9 @@ function NavBar({showLogin}){
         <span style={{fontSize:22}}>💊</span>
         <div>
           <span style={{color:'#fff',fontWeight:700,fontSize:16}}>RxNorm Taiwan</span>
-          <span style={{color:'rgba(255,255,255,.7)',fontSize:11,marginLeft:8}}>Drug Identification System</span>
+          <span style={{color:'rgba(255,255,255,.7)',fontSize:11,marginLeft:8}}>
+            {nhiCount>0?`${nhiCount.toLocaleString()} NHI drugs loaded`:'Drug Identification System'}
+          </span>
         </div>
       </div>
       <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -168,7 +166,7 @@ function NavBar({showLogin}){
   )
 }
 
-// ── Drug Search (with autocomplete dropdown) ── NEW (F06)
+// ── Drug Search ────────────────────────────────────────────────────────────
 function DrugSearch(){
   const [query,setQuery]=useState('')
   const [results,setResults]=useState([])
@@ -206,7 +204,6 @@ function DrugSearch(){
           style={{width:'100%',padding:'12px 16px',fontSize:15,borderRadius:10,fontFamily:'inherit',
             border:`1px solid ${showDD?C.primary:C.border}`,outline:'none',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}}/>
 
-        {/* Autocomplete dropdown */}
         {showDD&&(
           <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:200,background:'#fff',
             border:`1px solid ${C.border}`,borderTop:'none',borderRadius:'0 0 10px 10px',
@@ -252,17 +249,28 @@ function DrugSearch(){
             </span>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
-            {[['NHI Code (健保碼)',selected.id],['ATC Code',selected.atc],
-              ['English Name',selected.nameEN],['Chinese Name (中文名)',selected.nameZH],
-              ['Dosage Form (劑型)',selected.form],['Strength (劑量)',selected.strength],
-              ['NHI Price (NT$)',`NT$ ${selected.price}`],['Manufacturer (製造商)',selected.manufacturer]
-            ].map(([l,v])=>(
+            {[
+              ['NHI Code (健保碼)', selected.id],
+              ['ATC Code', selected.atc],
+              ['English Name', selected.nameEN],
+              ['Chinese Name (中文名)', selected.nameZH],
+              ['Dosage Form (劑型)', selected.form],
+              ['Strength (劑量)', selected.strength],
+              isStaff ? ['NHI Price (NT$)', `NT$ ${selected.price}`] : null,
+              ['Manufacturer (製造商)', selected.manufacturer],
+            ].filter(Boolean).map(([l,v])=>(
               <div key={l} style={{background:'#f8fafc',borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>{l}</div>
                 <div style={{fontSize:14,fontWeight:500}}>{v}</div>
               </div>
             ))}
           </div>
+          {!isStaff&&(
+            <div style={{background:'#f8fafc',border:`1px dashed ${C.border}`,borderRadius:8,padding:'10px 12px',
+              marginBottom:12,fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:8}}>
+              🔒 <span>NHI reimbursement price is available to Hospital Staff and Admin only.</span>
+            </div>
+          )}
           <LockedFeature minRole="staff">
             <div style={{background:C.staffBg,border:`1px solid #fbbf24`,borderRadius:8,padding:12,marginBottom:12}}>
               <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>🏥 Routing & Trace (Staff Only)</div>
@@ -289,7 +297,10 @@ function DrugSearch(){
                     <div>
                       <div style={{fontWeight:600,fontSize:15}}>{d.ingredient}</div>
                       <div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.nameEN} · {d.nameZH}</div>
-                      <div style={{fontSize:11,color:C.muted,marginTop:4}}>{d.id} · ATC: {d.atc} · {d.form} · NT$ {d.price}</div>
+                      <div style={{fontSize:11,color:C.muted,marginTop:4}}>
+                        {d.id} · ATC: {d.atc} · {d.form}
+                        {isStaff && ` · NT$ ${d.price}`}
+                      </div>
                     </div>
                     <div style={{width:48,height:48,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',
                       fontSize:13,fontWeight:700,background:cc(d.score)+'22',color:cc(d.score),
@@ -317,14 +328,15 @@ function DrugSearch(){
   )
 }
 
-// ── Scan Rx (with front/back toggle) ── NEW (SRS Screen 1)
+// ── Scan Rx ────────────────────────────────────────────────────────────────
 function ScanRx(){
   const [stage,setStage]=useState('idle')
-  const [mode,setMode]=useState('front')          // front | back
+  const [mode,setMode]=useState('front')
   const [frontDone,setFrontDone]=useState(false)
   const [added,setAdded]=useState(new Set())
   const [reportDrug,setReportDrug]=useState(null)
   const fileRef=useRef()
+  const {isStaff}=useAuth()
 
   function capture(m){
     setMode(m); setStage('scanning')
@@ -345,7 +357,6 @@ function ScanRx(){
 
       {stage==='idle'&&(
         <Card style={{padding:0,overflow:'hidden'}}>
-          {/* Front/Back toggle */}
           <div style={{display:'flex',borderBottom:`1px solid ${C.border}`}}>
             {['front','back'].map(m=>(
               <button key={m} onClick={()=>setMode(m)}
@@ -359,7 +370,6 @@ function ScanRx(){
             ))}
           </div>
           <div style={{padding:32,textAlign:'center'}}>
-            {/* Simulated viewfinder */}
             <div style={{width:'100%',height:160,background:'#1a202c',borderRadius:10,marginBottom:20,
               display:'flex',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
               <div style={{border:'2px dashed rgba(255,255,255,.5)',borderRadius:8,width:'70%',height:'70%',
@@ -426,7 +436,10 @@ function ScanRx(){
                     </span>
                   </div>
                   <div style={{fontSize:13,color:C.muted}}>{drug.nameEN} · {drug.nameZH}</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>{drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength} · NT$ {drug.price}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+                    {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
+                    {isStaff && ` · NT$ ${drug.price}`}
+                  </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginLeft:12}}>
                   <button onClick={()=>addMed(drug)} disabled={added.has(drug.id)}
@@ -459,7 +472,7 @@ function ScanRx(){
   )
 }
 
-// ── My Medications
+// ── My Medications ─────────────────────────────────────────────────────────
 function MyMeds(){
   const [meds,setMeds]=useState([
     {...DRUGS[0],times:['08:00','20:00'],reminderOn:true},
@@ -526,7 +539,7 @@ function MyMeds(){
   )
 }
 
-// ── Scan History tab ── NEW (F07, URS Screen 4)
+// ── Scan History ───────────────────────────────────────────────────────────
 function ScanHistory(){
   const {isStaff}=useAuth()
   const [tick,setTick]=useState(0)
@@ -605,7 +618,197 @@ function ScanHistory(){
   )
 }
 
-// ── Admin Dashboard
+// ── AI Drug Interaction Center (Staff/Admin only) ──────────────────────────
+const SEVERITY_CFG = {
+  HIGH:     { color:'#dc2626', bg:'#fef2f2', border:'#fca5a5', icon:'🔴', label:'HIGH' },
+  MODERATE: { color:'#d97706', bg:'#fffbeb', border:'#fcd34d', icon:'🟡', label:'MODERATE' },
+  LOW:      { color:'#16a34a', bg:'#f0fdf4', border:'#86efac', icon:'🟢', label:'LOW' },
+}
+
+function DrugInteractionCenter(){
+  const [drugA,setDrugA]=useState('')
+  const [drugB,setDrugB]=useState('')
+  const [resultsA,setResultsA]=useState([])
+  const [resultsB,setResultsB]=useState([])
+  const [selA,setSelA]=useState(null)
+  const [selB,setSelB]=useState(null)
+  const [showA,setShowA]=useState(false)
+  const [showB,setShowB]=useState(false)
+  const [alerts,setAlerts]=useState([])
+  const [checked,setChecked]=useState(false)
+  const refA=useRef(); const refB=useRef()
+
+  useEffect(()=>{
+    function h(e){
+      if(refA.current&&!refA.current.contains(e.target))setShowA(false)
+      if(refB.current&&!refB.current.contains(e.target))setShowB(false)
+    }
+    document.addEventListener('mousedown',h); return()=>document.removeEventListener('mousedown',h)
+  },[])
+
+  function typeA(q){ setDrugA(q); setSelA(null); const r=q.length>=1?searchDrugs(q):[]; setResultsA(r); setShowA(q.length>=1&&r.length>0) }
+  function typeB(q){ setDrugB(q); setSelB(null); const r=q.length>=1?searchDrugs(q):[]; setResultsB(r); setShowB(q.length>=1&&r.length>0) }
+  function pickA(d){ setSelA(d); setDrugA(d.nameEN); setShowA(false) }
+  function pickB(d){ setSelB(d); setDrugB(d.nameEN); setShowB(false) }
+
+  function check(){
+    if(!selA||!selB){ return }
+    setAlerts(checkInteractions([selA,selB]))
+    setChecked(true)
+  }
+  function reset(){ setSelA(null); setSelB(null); setDrugA(''); setDrugB(''); setAlerts([]); setChecked(false) }
+
+  const inputStyle={width:'100%',padding:'10px 14px',fontSize:14,borderRadius:8,fontFamily:'inherit',
+    border:`1px solid ${C.border}`,outline:'none'}
+
+  // Always show known interactions reference table
+  return(
+    <LockedFeature minRole="staff">
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+
+        {/* Header */}
+        <Card style={{background:'linear-gradient(135deg,#1a73e8 0%,#0d47a1 100%)',border:'none',color:'#fff'}}>
+          <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>🤖 AI Drug Interaction Center</div>
+          <div style={{fontSize:13,opacity:.85}}>
+            Check for clinically significant drug–drug interactions. Alerts are based on NHI/Taiwan pharmacovigilance data and international guidelines.
+          </div>
+          <div style={{fontSize:11,marginTop:8,opacity:.7}}>⚠️ For clinical reference only. Always verify with a pharmacist or physician.</div>
+        </Card>
+
+        {/* Drug pair checker */}
+        <Card>
+          <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>Interaction Checker — Select Two Drugs</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
+            {/* Drug A */}
+            <div ref={refA} style={{position:'relative'}}>
+              <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:4}}>Drug A</div>
+              <input value={drugA} onChange={e=>typeA(e.target.value)}
+                onFocus={()=>drugA.length>=1&&resultsA.length>0&&setShowA(true)}
+                placeholder="Search drug A..."
+                style={{...inputStyle, borderColor: selA?C.success:C.border}}/>
+              {selA&&<div style={{fontSize:11,color:C.success,marginTop:3}}>✓ {selA.ingredient}</div>}
+              {showA&&(
+                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:300,background:'#fff',
+                  border:`1px solid ${C.border}`,borderRadius:'0 0 8px 8px',boxShadow:'0 8px 24px rgba(0,0,0,.12)',maxHeight:200,overflowY:'auto'}}>
+                  {resultsA.slice(0,5).map(d=>(
+                    <div key={d.id} onMouseDown={()=>pickA(d)}
+                      style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:`1px solid ${C.border}`}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                      <div style={{fontWeight:600}}>{d.ingredient}</div>
+                      <div style={{fontSize:11,color:C.muted}}>{d.nameEN}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Drug B */}
+            <div ref={refB} style={{position:'relative'}}>
+              <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:4}}>Drug B</div>
+              <input value={drugB} onChange={e=>typeB(e.target.value)}
+                onFocus={()=>drugB.length>=1&&resultsB.length>0&&setShowB(true)}
+                placeholder="Search drug B..."
+                style={{...inputStyle, borderColor: selB?C.success:C.border}}/>
+              {selB&&<div style={{fontSize:11,color:C.success,marginTop:3}}>✓ {selB.ingredient}</div>}
+              {showB&&(
+                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:300,background:'#fff',
+                  border:`1px solid ${C.border}`,borderRadius:'0 0 8px 8px',boxShadow:'0 8px 24px rgba(0,0,0,.12)',maxHeight:200,overflowY:'auto'}}>
+                  {resultsB.slice(0,5).map(d=>(
+                    <div key={d.id} onMouseDown={()=>pickB(d)}
+                      style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:`1px solid ${C.border}`}}
+                      onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
+                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                      <div style={{fontWeight:600}}>{d.ingredient}</div>
+                      <div style={{fontSize:11,color:C.muted}}>{d.nameEN}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={check} disabled={!selA||!selB}
+              style={{flex:1,padding:'10px',borderRadius:8,fontSize:14,fontWeight:600,border:'none',cursor:selA&&selB?'pointer':'default',
+                background:selA&&selB?C.primary:'#e2e8f0',color:selA&&selB?'#fff':C.muted}}>
+              🔍 Check Interaction
+            </button>
+            <button onClick={reset}
+              style={{padding:'10px 18px',borderRadius:8,fontSize:14,fontWeight:500,border:`1px solid ${C.border}`,cursor:'pointer',background:'#f8fafc',color:C.text}}>
+              Clear
+            </button>
+          </div>
+
+          {checked&&(
+            <div style={{marginTop:16}}>
+              {alerts.length===0?(
+                <div style={{background:'#f0fdf4',border:`1px solid #86efac`,borderRadius:10,padding:'12px 16px',
+                  display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:24}}>✅</span>
+                  <div>
+                    <div style={{fontWeight:600,color:'#166534'}}>No significant interaction found</div>
+                    <div style={{fontSize:12,color:'#15803d',marginTop:2}}>
+                      {selA?.ingredient} + {selB?.ingredient} — no interaction recorded in the current database. Always verify clinically.
+                    </div>
+                  </div>
+                </div>
+              ):(
+                <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  {alerts.map((a,i)=>{
+                    const cfg=SEVERITY_CFG[a.severity]||SEVERITY_CFG.LOW
+                    return(
+                      <div key={i} style={{background:cfg.bg,border:`1px solid ${cfg.border}`,borderRadius:10,padding:'14px 16px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                          <span style={{fontSize:18}}>{cfg.icon}</span>
+                          <span style={{fontWeight:700,fontSize:13,color:cfg.color}}>{cfg.label} SEVERITY</span>
+                          <span style={{fontSize:13,fontWeight:600,marginLeft:'auto',color:C.text}}>
+                            {a.drugA.ingredient} ↔ {a.drugB.ingredient}
+                          </span>
+                        </div>
+                        <div style={{fontSize:13,color:C.text,marginBottom:8}}>{a.en}</div>
+                        <div style={{fontSize:12,color:C.muted,marginBottom:8,fontStyle:'italic'}}>{a.zh}</div>
+                        <div style={{background:'rgba(255,255,255,.6)',borderRadius:8,padding:'8px 10px',fontSize:12}}>
+                          <span style={{fontWeight:600}}>Clinical Management: </span>{a.management}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
+        {/* Reference interaction table */}
+        <Card>
+          <div style={{fontWeight:600,fontSize:15,marginBottom:4}}>Known Clinically Significant Interactions</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:12}}>Based on NHI pharmacovigilance data and international clinical guidelines</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {INTERACTION_DB.map((ix,i)=>{
+              const cfg=SEVERITY_CFG[ix.severity]||SEVERITY_CFG.LOW
+              return(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',
+                  background:'#f8fafc',borderRadius:8,border:`1px solid ${C.border}`}}>
+                  <span style={{fontSize:16,flexShrink:0,marginTop:1}}>{cfg.icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>
+                      {ix.drugs.map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join(' + ')}
+                      <span style={{marginLeft:8,fontSize:11,fontWeight:600,color:cfg.color,
+                        background:cfg.bg,border:`1px solid ${cfg.border}`,
+                        padding:'1px 7px',borderRadius:10}}>{cfg.label}</span>
+                    </div>
+                    <div style={{fontSize:12,color:C.muted,marginTop:3}}>{ix.en}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      </div>
+    </LockedFeature>
+  )
+}
+
+// ── Admin Dashboard ────────────────────────────────────────────────────────
 function AdminDashboard(){
   const [refreshing,setRefreshing]=useState(false)
   const [step,setStep]=useState(0)
@@ -696,22 +899,33 @@ function AdminDashboard(){
   )
 }
 
-// ── Main App
+// ── Main App ───────────────────────────────────────────────────────────────
 function AppInner(){
   const [tab,setTab]=useState('search')
   const [showLogin,setShowLogin]=useState(false)
-  const {isAdmin}=useAuth()
+  const [nhiCount,setNhiCount]=useState(0)
+  const {isAdmin,isStaff}=useAuth()
+
+  useEffect(()=>{
+    loadNHIDrugs().then(n=>{ if(n>0) setNhiCount(n) })
+  },[])
+
   const tabs=[
-    {id:'search', label:'🔍 Drug Search'},
-    {id:'scan',   label:'📷 Scan Rx'},
-    {id:'meds',   label:'💊 My Meds'},
-    {id:'history',label:'🕐 History'},
-    {id:'admin',  label:'⚙️ Admin', adminOnly:true},
-  ].filter(t=>!t.adminOnly||isAdmin)
+    {id:'search',    label:'🔍 Drug Search'},
+    {id:'scan',      label:'📷 Scan Rx'},
+    {id:'meds',      label:'💊 My Meds'},
+    {id:'history',   label:'🕐 History'},
+    {id:'interact',  label:'⚠️ Interactions', minRole:'staff'},
+    {id:'admin',     label:'⚙️ Admin',        minRole:'admin'},
+  ].filter(t=>{
+    if(t.minRole==='admin') return isAdmin
+    if(t.minRole==='staff') return isStaff
+    return true
+  })
 
   return(
     <div style={{minHeight:'100vh',background:C.bg}}>
-      <NavBar showLogin={()=>setShowLogin(true)}/>
+      <NavBar showLogin={()=>setShowLogin(true)} nhiCount={nhiCount}/>
       {showLogin&&<LoginModal onClose={()=>setShowLogin(false)}/>}
       <div style={{background:'#fff',borderBottom:`1px solid ${C.border}`,padding:'0 16px',display:'flex',gap:0,overflowX:'auto'}}>
         {tabs.map(t=>(
@@ -724,15 +938,16 @@ function AppInner(){
         ))}
       </div>
       <div style={{maxWidth:720,margin:'0 auto',padding:16}}>
-        {tab==='search' &&<DrugSearch/>}
-        {tab==='scan'   &&<ScanRx/>}
-        {tab==='meds'   &&<MyMeds/>}
-        {tab==='history'&&<ScanHistory/>}
-        {tab==='admin'  &&<AdminDashboard/>}
+        {tab==='search'   &&<DrugSearch/>}
+        {tab==='scan'     &&<ScanRx/>}
+        {tab==='meds'     &&<MyMeds/>}
+        {tab==='history'  &&<ScanHistory/>}
+        {tab==='interact' &&<DrugInteractionCenter/>}
+        {tab==='admin'    &&<AdminDashboard/>}
       </div>
       <div style={{textAlign:'center',padding:'24px 16px',color:C.muted,fontSize:12}}>
         RxNorm Taiwan · Group 6 · NTHU EECS Rural Smart Healthcare · 2026<br/>
-        Data source: NHI Pharmaceutical Benefit and Reimbursement Schedule
+        Data source: NHI Pharmaceutical Benefit and Reimbursement Schedule · {nhiCount>0?`${nhiCount.toLocaleString()} active drugs`:'Loading NHI data...'}
       </div>
     </div>
   )
