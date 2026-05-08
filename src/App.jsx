@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { AuthProvider, useAuth } from './auth.jsx'
-import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions } from './data.js'
+import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions,
+         ATC_CATEGORIES, drugClassLabel, computeStats } from './data.js'
 
 const C = {
   primary:'#1a73e8', primaryDk:'#1558b0', success:'#34a853',
@@ -166,6 +167,61 @@ function NavBar({showLogin,nhiCount}){
   )
 }
 
+// ── Drug class badge ──────────────────────────────────────────────────────
+function DrugClassBadge({raw}){
+  const label=drugClassLabel(raw)
+  if(!label) return null
+  const cfg={
+    'Generic':      ['#0369a1','#e0f2fe'],
+    'BA/BE Generic':['#0e7490','#ecfeff'],
+    'Originator':   ['#6d28d9','#ede9fe'],
+    'Biologic':     ['#15803d','#dcfce7'],
+    'Biosimilar':   ['#166534','#bbf7d0'],
+  }[label]||['#6b7280','#f3f4f6']
+  return(
+    <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,
+      color:cfg[0],background:cfg[1],border:`1px solid ${cfg[0]}33`,marginLeft:6}}>
+      {label}
+    </span>
+  )
+}
+
+// ── External reference links (Staff/Admin) ────────────────────────────────
+const FDA_BASE  = 'https://lmspiq.fda.gov.tw/web/DRPIQ/DRPIQ1000Result?licId='
+const NHI_PDF   = 'https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName='
+const MOHW_TOOL = 'https://medstandard.mohw.gov.tw/rx-norm/tool'
+const NHI_DB    = 'https://info.nhi.gov.tw/INAE3000/INAE3000S01'
+
+function ExternalLinks({drug}){
+  const {isStaff}=useAuth()
+  const links=[
+    drug.licId  && {href:FDA_BASE+drug.licId,  label:'🔗 FDA License',      tip:'Taiwan FDA drug license details'},
+    isStaff && drug.nhiPdf && {href:NHI_PDF+drug.nhiPdf,label:'📋 NHI Reimbursement', tip:'NHI reimbursement guideline PDF'},
+    isStaff && {href:MOHW_TOOL, label:'🔍 MOHW RxNorm',     tip:'MOHW RxNorm terminology tool'},
+    {href:NHI_DB,              label:'📊 NHI Drug DB',       tip:'NHI drug database'},
+  ].filter(Boolean)
+  if(!links.length) return null
+  return(
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:11,fontWeight:600,color:C.muted,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>
+        External References
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+        {links.map(l=>(
+          <a key={l.href} href={l.href} target="_blank" rel="noreferrer" title={l.tip}
+            style={{fontSize:12,fontWeight:500,padding:'5px 10px',borderRadius:7,
+              background:'#f0f7ff',color:C.primary,border:`1px solid ${C.primary}33`,
+              textDecoration:'none',whiteSpace:'nowrap'}}
+            onMouseEnter={e=>e.currentTarget.style.background='#dbeafe'}
+            onMouseLeave={e=>e.currentTarget.style.background='#f0f7ff'}>
+            {l.label}
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Drug Search ────────────────────────────────────────────────────────────
 function DrugSearch(){
   const [query,setQuery]=useState('')
@@ -240,8 +296,22 @@ function DrugSearch(){
           <LowConfWarning score={selected.score} name={selected.nameEN}/>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
             <div>
-              <div style={{fontWeight:700,fontSize:20}}>{selected.ingredient}</div>
-              <div style={{color:C.muted,fontSize:13,marginTop:2}}>Active Ingredient (成分根節點)</div>
+              <div style={{display:'flex',alignItems:'center',flexWrap:'wrap',gap:4}}>
+                <span style={{fontWeight:700,fontSize:20}}>{selected.ingredient}</span>
+                <DrugClassBadge raw={selected.drugClass}/>
+                {selected.combination==='複方'&&(
+                  <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:8,
+                    color:'#92400e',background:'#fef3c7',border:'1px solid #fbbf2433',marginLeft:2}}>複方</span>
+                )}
+              </div>
+              <div style={{color:C.muted,fontSize:13,marginTop:2}}>
+                Active Ingredient (成分根節點)
+                {selected.atc&&(
+                  <span style={{marginLeft:8,color:C.primary,fontSize:12}}>
+                    · {ATC_CATEGORIES[selected.atc[0]?.toUpperCase()]||''}
+                  </span>
+                )}
+              </div>
             </div>
             <span style={{background:cc(selected.score)+'20',color:cc(selected.score),
               padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,border:`1px solid ${cc(selected.score)}44`}}>
@@ -265,12 +335,21 @@ function DrugSearch(){
               </div>
             ))}
           </div>
+          {selected.nhiChapter&&(
+            <div style={{background:'#f0f7ff',border:`1px solid ${C.primary}33`,borderRadius:8,
+              padding:'8px 12px',marginBottom:12,fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
+              <span><b>NHI Chapter:</b> {selected.nhiChapter}</span>
+              {selected.combination&&<span><b>Type:</b> {selected.combination}</span>}
+              {selected.drugClass&&<span><b>Class:</b> {drugClassLabel(selected.drugClass)||selected.drugClass}</span>}
+            </div>
+          )}
           {!isStaff&&(
             <div style={{background:'#f8fafc',border:`1px dashed ${C.border}`,borderRadius:8,padding:'10px 12px',
               marginBottom:12,fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:8}}>
               🔒 <span>NHI reimbursement price is available to Hospital Staff and Admin only.</span>
             </div>
           )}
+          <ExternalLinks drug={selected}/>
           <LockedFeature minRole="staff">
             <div style={{background:C.staffBg,border:`1px solid #fbbf24`,borderRadius:8,padding:12,marginBottom:12}}>
               <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>🏥 Routing & Trace (Staff Only)</div>
@@ -295,7 +374,10 @@ function DrugSearch(){
                 <Card key={d.id} style={{cursor:'pointer'}} onClick={()=>pick(d)}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
-                      <div style={{fontWeight:600,fontSize:15}}>{d.ingredient}</div>
+                      <div style={{display:'flex',alignItems:'center',flexWrap:'wrap'}}>
+                        <span style={{fontWeight:600,fontSize:15}}>{d.ingredient}</span>
+                        <DrugClassBadge raw={d.drugClass}/>
+                      </div>
                       <div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.nameEN} · {d.nameZH}</div>
                       <div style={{fontSize:11,color:C.muted,marginTop:4}}>
                         {d.id} · ATC: {d.atc} · {d.form}
@@ -823,12 +905,20 @@ function AdminDashboard(){
     setTimeout(()=>{setRefreshing(false);setStep(0)},3*600+600)
   }
   const steps=['Import from NHI data source','Deduplication','Diff vs previous version','Release — atomic dictionary swap']
-  const metrics=[
-    {label:'Total Drugs',value:'41,283',sub:'in NHI database'},
-    {label:'Active Drugs',value:'38,912',sub:'94.3% of total'},
-    {label:'Expired Permits',value:'2,371',sub:'flagged for removal'},
-    {label:'Missing ATC Code',value:'1,204',sub:'require mapping'},
+
+  const stats=computeStats()
+  const metrics=stats?[
+    {label:'Active Drugs',  value:stats.total.toLocaleString(),     sub:'currently reimbursed by NHI'},
+    {label:'Combination Rx',value:stats.combo.toLocaleString(),     sub:`${((stats.combo/stats.total)*100).toFixed(1)}% of total`},
+    {label:'Missing ATC',   value:stats.noAtc.toLocaleString(),     sub:'require ATC code mapping'},
+    {label:'Drug Classes',  value:Object.keys(stats.byClass).length, sub:'classifications in database'},
+  ]:[
+    {label:'Total Drugs',value:'—',sub:'loading NHI data...'},
+    {label:'Active Drugs',value:'—',sub:''},
+    {label:'Missing ATC Code',value:'—',sub:''},
+    {label:'Drug Classes',value:'—',sub:''},
   ]
+
   return(
     <LockedFeature minRole="admin">
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
@@ -841,6 +931,41 @@ function AdminDashboard(){
             </Card>
           ))}
         </div>
+
+        {stats&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <Card>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>By Drug Class</div>
+              {Object.entries(stats.byClass).sort((a,b)=>b[1]-a[1]).map(([k,v])=>(
+                <div key={k} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6,alignItems:'center'}}>
+                  <span style={{color:C.text}}>{k}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <div style={{height:6,borderRadius:3,background:C.primary+'40',width:60}}>
+                      <div style={{height:'100%',borderRadius:3,background:C.primary,
+                        width:`${Math.round((v/stats.total)*100)}%`}}/>
+                    </div>
+                    <span style={{color:C.muted,fontSize:11,minWidth:36,textAlign:'right'}}>{v.toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+            </Card>
+            <Card>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>Top ATC Categories</div>
+              {stats.topAtc.map(([k,v])=>(
+                <div key={k} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6,alignItems:'center'}}>
+                  <span style={{color:C.text,flex:1,marginRight:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{k}</span>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                    <div style={{height:6,borderRadius:3,background:'#34a85340',width:40}}>
+                      <div style={{height:'100%',borderRadius:3,background:C.success,
+                        width:`${Math.round((v/stats.topAtc[0][1])*100)}%`}}/>
+                    </div>
+                    <span style={{color:C.muted,fontSize:11,minWidth:36,textAlign:'right'}}>{v.toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
         <Card style={{border:`1px solid ${C.primary}44`}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
             <div>

@@ -72,6 +72,66 @@ export const DEMO_OCR_RESULT = {
   ]
 }
 
+// ── ATC Level-1 Category Labels ───────────────────────────────────────────
+export const ATC_CATEGORIES = {
+  A: 'Alimentary & Metabolism',
+  B: 'Blood & Hematopoietic',
+  C: 'Cardiovascular',
+  D: 'Dermatologicals',
+  G: 'Genito-urinary & Sex Hormones',
+  H: 'Systemic Hormones',
+  J: 'Anti-infectives (Systemic)',
+  L: 'Antineoplastic & Immunomodulating',
+  M: 'Musculoskeletal',
+  N: 'Nervous System',
+  P: 'Antiparasitic',
+  R: 'Respiratory',
+  S: 'Sensory Organs',
+  V: 'Various',
+}
+
+// Short EN label for drugClass field from NHI CSV
+export function drugClassLabel(raw) {
+  if (!raw) return ''
+  if (raw.includes('BA/BE')) return 'BA/BE Generic'
+  if (raw.includes('學名藥')) return 'Generic'
+  if (raw.includes('研發廠')) return 'Originator'
+  if (raw.includes('生物相似')) return 'Biosimilar'
+  if (raw.includes('生物製劑')) return 'Biologic'
+  return raw
+}
+
+// Compute aggregate stats from DRUGS_LIVE (call after loadNHIDrugs resolves)
+export function computeStats() {
+  const total = DRUGS_LIVE.length
+  if (total === 0) return null
+
+  const byClass = {}
+  const byForm = {}
+  const byAtc = {}
+  let noAtc = 0, combo = 0
+
+  for (const d of DRUGS_LIVE) {
+    const cls = drugClassLabel(d.drugClass) || 'Other'
+    byClass[cls] = (byClass[cls] || 0) + 1
+
+    const form = d.form || 'Unknown'
+    byForm[form] = (byForm[form] || 0) + 1
+
+    if (!d.atc) { noAtc++ } else {
+      const cat = ATC_CATEGORIES[d.atc[0]?.toUpperCase()] || 'Other'
+      byAtc[cat] = (byAtc[cat] || 0) + 1
+    }
+
+    if (d.combination === '複方') combo++
+  }
+
+  const topForms = Object.entries(byForm).sort((a,b)=>b[1]-a[1]).slice(0,6)
+  const topAtc   = Object.entries(byAtc).sort((a,b)=>b[1]-a[1]).slice(0,6)
+
+  return { total, byClass, topForms, topAtc, noAtc, combo }
+}
+
 // ── Drug Interaction Database ──────────────────────────────────────────────
 // Each entry: ingredient names (lowercase), severity, mechanism, management
 export const INTERACTION_DB = [
