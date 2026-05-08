@@ -1600,12 +1600,7 @@ function InteractionBanner({meds}){
 }
 
 // ── My Medications ─────────────────────────────────────────────────────────
-function MyMeds(){
-  const [meds,setMeds]=useState([
-    {...DRUGS[6],times:['09:00'],reminderOn:true},
-    {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
-    {...DRUGS[7],times:['08:00'],reminderOn:true},
-  ])
+function MyMeds({meds,setMeds}){
   const {isStaff}=useAuth()
   const toggle=id=>setMeds(p=>p.map(m=>m.id===id?{...m,reminderOn:!m.reminderOn}:m))
   const remove=id=>setMeds(p=>p.filter(m=>m.id!==id))
@@ -1669,13 +1664,32 @@ function MyMeds(){
 }
 
 // ── Scan History ───────────────────────────────────────────────────────────
-function ScanHistory(){
+function ScanHistory({myDrugs,setMyDrugs}){
   const {isStaff}=useAuth()
   const [tick,setTick]=useState(0)
   const h=HISTORY
   const fmt=iso=>{ try{return new Date(iso).toLocaleString()}catch{return iso} }
   const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
+  function addHistoryDrugToMyDrugs(record){
+    if(!setMyDrugs) return
+
+    const drug = DRUGS.find(d =>
+      d.nameEN===record.query ||
+      d.ingredient===record.result ||
+      d.id===record.query
+    )
+
+    if(!drug) return
+
+    setMyDrugs(prev=>{
+      if(prev.some(m=>m.id===drug.id)) return prev
+      return [
+        ...prev,
+        {...drug,times:['09:00'],reminderOn:true}
+      ]
+    })
+  }
   function exportCSV(){
     const csv='Timestamp,Type,Query,Result,Confidence\n'+
       h.map(r=>`"${fmt(r.ts)}","${r.type}","${r.query}","${r.result}","${Math.round((r.score||0)*100)}%"`).join('\n')
@@ -1731,6 +1745,22 @@ function ScanHistory(){
                   </div>
                   <div style={{fontSize:12,color:C.muted}}>Matched: <b>{r.result}</b></div>
                   <div style={{fontSize:11,color:C.muted,marginTop:4}}>{fmt(r.ts)}</div>
+                  <button
+                    onClick={()=>addHistoryDrugToMyDrugs(r)}
+                    style={{
+                      marginTop:8,
+                      padding:'7px 12px',
+                      borderRadius:10,
+                      border:'none',
+                      background:C.primary,
+                      color:'#fff',
+                      fontSize:12,
+                      fontWeight:700,
+                      cursor:'pointer'
+                    }}
+                  >
+                    + Add to My Drugs
+                  </button>
                 </div>
                 {r.score!=null&&(
                   <span style={{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:12,
@@ -1752,11 +1782,50 @@ function SettingsPage({
   setDarkMode,
   language,
   setLanguage,
-  T
+  T,
+  myDrugs,
+  setMyDrugs
 }){
   const {isAdmin,isStaff}=useAuth()
   const isSignedIn = isAdmin || isStaff
   const theme = darkMode ? D : C
+  const [settingsSubPage,setSettingsSubPage]=useState('main')
+
+  if(settingsSubPage==='profile'){
+    return(
+      <SettingsSubLayout
+        title="User Profile"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <UserProfilePage darkMode={darkMode}/>
+      </SettingsSubLayout>
+    )
+  }
+
+  if(settingsSubPage==='history'){
+    return(
+      <SettingsSubLayout
+        title="Scan History"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <ScanHistory myDrugs={myDrugs} setMyDrugs={setMyDrugs}/>
+      </SettingsSubLayout>
+    )
+  }
+
+  if(settingsSubPage==='myDrugs'){
+    return(
+      <SettingsSubLayout
+        title="My Drugs"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <MyMeds meds={myDrugs} setMeds={setMyDrugs}/>
+      </SettingsSubLayout>
+    )
+  }
 
   return(
     <div style={{
@@ -1764,64 +1833,44 @@ function SettingsPage({
       background:theme.card,
       minHeight:'calc(100vh - 230px)'
     }}>
-      <div style={{
-        fontSize:22,
-        fontWeight:800,
-        marginBottom:8,
-        color:theme.text
-      }}>
+      <div style={{fontSize:22,fontWeight:800,marginBottom:8,color:theme.text}}>
         {T.settings}
       </div>
 
-      <div style={{
-        color:theme.muted,
-        fontSize:14,
-        marginBottom:24
-      }}>
-        {T.managePrefs}
+      <div style={{color:theme.muted,fontSize:14,marginBottom:24}}>
+        Manage profile, scan history, drugs, and app preferences.
       </div>
 
       <div style={{display:'grid',gap:14}}>
         {isSignedIn && (
           <>
-            <div style={getSettingsCardStyle(darkMode)}>
-              <div>
-                <div style={getSettingsTitleStyle(darkMode)}>
-                  {T.userProfile}
-                </div>
-                <div style={getSettingsDescStyle(darkMode)}>
-                  {T.userProfileDesc}
-                </div>
-              </div>
-              <button style={getSettingsButtonStyle()}>
-                {T.open}
-              </button>
-            </div>
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="User Profile"
+              desc="View and manage signed-in user information"
+              onClick={()=>setSettingsSubPage('profile')}
+            />
 
-            <div style={getSettingsCardStyle(darkMode)}>
-              <div>
-                <div style={getSettingsTitleStyle(darkMode)}>
-                  {T.scanHistory}
-                </div>
-                <div style={getSettingsDescStyle(darkMode)}>
-                  {T.scanHistoryDesc}
-                </div>
-              </div>
-              <button style={getSettingsButtonStyle()}>
-                {T.open}
-              </button>
-            </div>
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="Scan History"
+              desc="View prescription scan records and add important drugs"
+              onClick={()=>setSettingsSubPage('history')}
+            />
+
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="My Drugs"
+              desc="Manage saved medications and reminders"
+              onClick={()=>setSettingsSubPage('myDrugs')}
+            />
           </>
         )}
 
         <div style={getSettingsCardStyle(darkMode)}>
           <div>
-            <div style={getSettingsTitleStyle(darkMode)}>
-              {T.mode}
-            </div>
-            <div style={getSettingsDescStyle(darkMode)}>
-              {T.modeDesc}
-            </div>
+            <div style={getSettingsTitleStyle(darkMode)}>{T.mode}</div>
+            <div style={getSettingsDescStyle(darkMode)}>{T.modeDesc}</div>
           </div>
 
           <button
@@ -1834,12 +1883,8 @@ function SettingsPage({
 
         <div style={getSettingsCardStyle(darkMode)}>
           <div>
-            <div style={getSettingsTitleStyle(darkMode)}>
-              {T.language}
-            </div>
-            <div style={getSettingsDescStyle(darkMode)}>
-              {T.languageDesc}
-            </div>
+            <div style={getSettingsTitleStyle(darkMode)}>{T.language}</div>
+            <div style={getSettingsDescStyle(darkMode)}>{T.languageDesc}</div>
           </div>
 
           <select
@@ -2232,6 +2277,164 @@ function AdminDashboard(){
   )
 }
 
+function UserProfilePage({darkMode}){
+  const {user,isAdmin,isStaff}=useAuth()
+  const theme = darkMode ? D : C
+
+  if(!user){
+    return(
+      <Card style={{textAlign:'center',padding:32}}>
+        <div style={{fontSize:42,marginBottom:12}}>👤</div>
+        <div style={{fontWeight:800,fontSize:18,marginBottom:6}}>
+          Guest User
+        </div>
+        <div style={{fontSize:13,color:'var(--muted)'}}>
+          Please sign in to view your profile.
+        </div>
+      </Card>
+    )
+  }
+
+  return(
+    <div style={{display:'grid',gap:14,color:theme.text}}>
+      <div>
+        <div style={{fontSize:22,fontWeight:900}}>User Profile</div>
+        <div style={{fontSize:13,color:theme.muted,marginTop:4}}>
+          Account information and access role.
+        </div>
+      </div>
+
+      <Card style={{
+        display:'flex',
+        alignItems:'center',
+        gap:14
+      }}>
+        <div style={{
+          width:58,
+          height:58,
+          borderRadius:'50%',
+          background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+          color:'#fff',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          fontSize:26,
+          fontWeight:900
+        }}>
+          {user.name?.[0]?.toUpperCase() || 'U'}
+        </div>
+
+        <div>
+          <div style={{fontSize:18,fontWeight:900}}>
+            {user.name}
+          </div>
+          <div style={{fontSize:13,color:theme.muted}}>
+            {isAdmin?'Administrator':isStaff?'Hospital Staff':'Guest'}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <ProfileRow label="Username" value={user.username || '-'} />
+        <ProfileRow label="Role" value={user.role || '-'} />
+        <ProfileRow label="Access Level" value={isAdmin?'Full Access':isStaff?'Staff Access':'Guest Access'} />
+        <ProfileRow label="Account Status" value="Active" />
+      </Card>
+
+      <Card>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:10}}>
+          Permissions
+        </div>
+
+        <ProfilePermission active={true} text="Search drug database" />
+        <ProfilePermission active={true} text="Scan prescription with OCR" />
+        <ProfilePermission active={isStaff || isAdmin} text="View NHI price and staff data" />
+        <ProfilePermission active={isStaff || isAdmin} text="Check drug interactions" />
+        <ProfilePermission active={isAdmin} text="Access admin dashboard" />
+      </Card>
+    </div>
+  )
+}
+
+function ProfileRow({label,value}){
+  return(
+    <div style={{
+      display:'flex',
+      justifyContent:'space-between',
+      gap:12,
+      padding:'11px 0',
+      borderBottom:'1px solid var(--border)'
+    }}>
+      <div style={{fontSize:13,color:'var(--muted)'}}>{label}</div>
+      <div style={{fontSize:13,fontWeight:800,color:'var(--text)',textAlign:'right'}}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function ProfilePermission({active,text}){
+  return(
+    <div style={{
+      display:'flex',
+      alignItems:'center',
+      gap:10,
+      padding:'8px 0',
+      fontSize:13,
+      color:'var(--text)'
+    }}>
+      <span>{active?'✅':'🔒'}</span>
+      <span style={{opacity:active?1:.55}}>{text}</span>
+    </div>
+  )
+}
+
+function SettingsMenuItem({darkMode,title,desc,onClick}){
+  return(
+    <div style={getSettingsCardStyle(darkMode)}>
+      <div>
+        <div style={getSettingsTitleStyle(darkMode)}>{title}</div>
+        <div style={getSettingsDescStyle(darkMode)}>{desc}</div>
+      </div>
+
+      <button onClick={onClick} style={getSettingsButtonStyle()}>
+        Open
+      </button>
+    </div>
+  )
+}
+
+function SettingsSubLayout({title,theme,onBack,children}){
+  return(
+    <div style={{color:theme.text}}>
+      <button
+        onClick={onBack}
+        style={{
+          border:'none',
+          background:'transparent',
+          color:theme.primary,
+          fontWeight:800,
+          marginBottom:14,
+          cursor:'pointer'
+        }}
+      >
+        ← Back
+      </button>
+
+      <div style={{
+        fontSize:22,
+        fontWeight:900,
+        marginBottom:16,
+        color:theme.text
+      }}>
+        {title}
+      </div>
+
+      {children}
+    </div>
+  )
+}
+
 function AppInner(){
   const [tab,setTab]=useState('scan')
   const [showLogin,setShowLogin]=useState(false)
@@ -2239,6 +2442,11 @@ function AppInner(){
   const [nhiCount,setNhiCount]=useState(0)
   const [darkMode,setDarkMode]=useState(false)
   const [language,setLanguage]=useState('en')
+  const [myDrugs,setMyDrugs]=useState([
+    {...DRUGS[6],times:['09:00'],reminderOn:true},
+    {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
+    {...DRUGS[7],times:['08:00'],reminderOn:true},
+  ])
 
   const {isAdmin,isStaff,logout}=useAuth()
 
@@ -2255,7 +2463,6 @@ function AppInner(){
   const tabs=[
     {id:'search', icon:'🔍', title:T.search},
     {id:'scan', icon:'📷', title:T.scan},
-    {id:'meds', icon:'💊', title:T.meds},
     {id:'interact', icon:'⚠️', title:T.interact, minRole:'staff'},
     {id:'admin', icon:'🛠️', title:T.admin, minRole:'admin'},
     {id:'settings', icon:'⚙️', title:T.settings},
@@ -2503,7 +2710,6 @@ function AppInner(){
         }}>
           {tab==='search' && <DrugSearch/>}
           {tab==='scan' && <ScanRx/>}
-          {tab==='meds' && <MyMeds/>}
           {tab==='interact' && <DrugInteractionCenter/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
@@ -2513,6 +2719,8 @@ function AppInner(){
               language={language}
               setLanguage={setLanguage}
               T={T}
+              myDrugs={myDrugs}
+              setMyDrugs={setMyDrugs}
             />
           )}
         </section>
