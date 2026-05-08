@@ -228,6 +228,54 @@ export const INTERACTION_DB = [
   },
 ]
 
+// Find therapeutic alternatives by ATC code (same level-4 prefix, deduplicated by ingredient)
+export function findAlternatives(drug, maxResults = 8) {
+  if (!drug?.atc || drug.atc.length < 4) return []
+  const atcL4 = drug.atc.slice(0, 5)
+  let results = DRUGS_LIVE.filter(d => d.id !== drug.id && d.atc.startsWith(atcL4))
+  if (results.length < 3) {
+    const atcL3 = drug.atc.slice(0, 4)
+    results = DRUGS_LIVE.filter(d => d.id !== drug.id && d.atc.startsWith(atcL3))
+  }
+  const seen = new Set()
+  return results
+    .sort((a, b) => parseFloat(a.price || 0) - parseFloat(b.price || 0))
+    .filter(d => {
+      if (seen.has(d.ingredient)) return false
+      seen.add(d.ingredient)
+      return true
+    })
+    .slice(0, maxResults)
+}
+
+// Match OCR raw text against DRUGS_LIVE, return top 5 with confidence scores
+export function matchOcrText(rawText) {
+  if (!rawText?.trim()) return []
+  const upper = rawText.toUpperCase()
+  const tokens = upper.split(/[\s\n\r,;():\-/]+/).filter(t => t.length >= 3)
+  const scored = []
+  for (const drug of DRUGS_LIVE) {
+    let score = 0
+    const ingrParts = drug.ingredient.toUpperCase().split(/\s+/).filter(p => p.length >= 4)
+    for (const part of ingrParts) {
+      if (tokens.some(t => t === part || (t.length >= 5 && part.startsWith(t)) || (part.length >= 5 && t.startsWith(part)))) score += 3
+      else if (upper.includes(part)) score += 2
+    }
+    if (upper.includes(drug.id.toUpperCase())) score += 5
+    if (drug.atc && upper.includes(drug.atc.toUpperCase())) score += 3
+    const nameParts = drug.nameEN.toUpperCase().split(/\s+/).filter(p => p.length >= 6)
+    for (const part of nameParts) {
+      if (tokens.some(t => t === part)) score += 2
+      else if (upper.includes(part)) score += 1
+    }
+    if (score >= 2) scored.push({ drug, score })
+  }
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(({ drug, score }) => ({ drug, confidence: Math.min(0.97, 0.55 + score * 0.06) }))
+}
+
 // Check interactions for a list of drugs (each must have .ingredient)
 export function checkInteractions(drugList) {
   if (!drugList || drugList.length < 2) return []

@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { AuthProvider, useAuth } from './auth.jsx'
 import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions,
-         ATC_CATEGORIES, drugClassLabel, computeStats } from './data.js'
+         ATC_CATEGORIES, drugClassLabel, computeStats, findAlternatives, matchOcrText } from './data.js'
 
 const C = {
   primary:'#1a73e8', primaryDk:'#1558b0', success:'#34a853',
@@ -222,6 +222,45 @@ function ExternalLinks({drug}){
   )
 }
 
+// ── Therapeutic Alternatives Panel ───────────────────────────────────────
+function AlternativesPanel({ drug }) {
+  const { isStaff } = useAuth()
+  const alts = useMemo(() => findAlternatives(drug), [drug.id, drug.atc])
+  if (!drug.atc || alts.length === 0) return null
+  const atcLabel = drug.atc.slice(0, 5)
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginBottom: 8,
+        textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Therapeutic Alternatives · ATC {atcLabel} ({alts.length} found)
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {alts.map(alt => (
+          <div key={alt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: `1px solid ${C.border}` }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{alt.ingredient}</span>
+                <DrugClassBadge raw={alt.drugClass} />
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {alt.nameEN} · {alt.form} {alt.strength}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+              {isStaff
+                ? <div style={{ fontSize: 13, fontWeight: 600, color: C.primary }}>NT$ {alt.price}</div>
+                : <div style={{ fontSize: 11, color: C.muted }}>🔒</div>}
+              <div style={{ fontSize: 10, color: C.muted }}>{alt.atc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Drug Search ────────────────────────────────────────────────────────────
 function DrugSearch(){
   const [query,setQuery]=useState('')
@@ -349,6 +388,7 @@ function DrugSearch(){
               🔒 <span>NHI reimbursement price is available to Hospital Staff and Admin only.</span>
             </div>
           )}
+          <AlternativesPanel drug={selected}/>
           <ExternalLinks drug={selected}/>
           <LockedFeature minRole="staff">
             <div style={{background:C.staffBg,border:`1px solid #fbbf24`,borderRadius:8,padding:12,marginBottom:12}}>
@@ -410,124 +450,218 @@ function DrugSearch(){
   )
 }
 
+// ── OCR Hook (real Tesseract.js + demo mode) ──────────────────────────────
+function useOCR() {
+  const [stage,setStage]=useState('idle')   // idle|loading|recognizing|matching|done|error
+  const [progress,setProgress]=useState(0)
+  const [ocrStatus,setOcrStatus]=useState('')
+  const [result,setResult]=useState(null)
+  const [previewUrl,setPreviewUrl]=useState(null)
+  const [ocrError,setOcrError]=useState(null)
+
+  async function recognize(imageFile) {
+    const url=URL.createObjectURL(imageFile)
+    setPreviewUrl(url); setStage('loading'); setProgress(0); setOcrError(null); setResult(null)
+    try {
+      const {createWorker}=await import('tesseract.js')
+      const worker=await createWorker(['eng','chi_tra'],1,{
+        logger: m=>{
+          if(m.status==='recognizing text'){
+            setStage('recognizing'); setProgress(Math.round(m.progress*100))
+          } else {
+            setOcrStatus(m.status||'')
+          }
+        }
+      })
+      const {data:{text}}=await worker.recognize(url)
+      await worker.terminate()
+      setStage('matching')
+      const matched=matchOcrText(text)
+      setResult({rawText:text.trim(),matched})
+      setStage('done')
+    } catch(e) {
+      setOcrError(e.message||'OCR failed. Try the demo mode.')
+      setStage('error')
+    }
+  }
+
+  async function runDemo() {
+    setPreviewUrl(null); setStage('loading'); setProgress(0); setOcrError(null); setResult(null)
+    await new Promise(r=>setTimeout(r,500))
+    setStage('recognizing')
+    for(let p=0;p<=100;p+=4){
+      await new Promise(r=>setTimeout(r,55))
+      setProgress(p)
+    }
+    setStage('matching')
+    await new Promise(r=>setTimeout(r,350))
+    setResult({rawText:DEMO_OCR_RESULT.rawText,matched:DEMO_OCR_RESULT.matched})
+    setStage('done')
+  }
+
+  function reset(){
+    setPreviewUrl(null); setStage('idle'); setProgress(0)
+    setOcrStatus(''); setResult(null); setOcrError(null)
+  }
+
+  return {stage,progress,ocrStatus,result,previewUrl,ocrError,recognize,runDemo,reset}
+}
+
 // ── Scan Rx ────────────────────────────────────────────────────────────────
 function ScanRx(){
-  const [stage,setStage]=useState('idle')
-  const [mode,setMode]=useState('front')
-  const [frontDone,setFrontDone]=useState(false)
+  const ocr=useOCR()
   const [added,setAdded]=useState(new Set())
   const [reportDrug,setReportDrug]=useState(null)
   const fileRef=useRef()
   const {isStaff}=useAuth()
+  const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
-  function capture(m){
-    setMode(m); setStage('scanning')
-    setTimeout(()=>{
-      if(m==='front'){setFrontDone(true);setStage('idle')}
-      else setStage('results')
-    },1400)
+  function handleFile(e){
+    const file=e.target.files?.[0]
+    if(file) ocr.recognize(file)
+    e.target.value=''
   }
   function addMed(drug){
     setAdded(p=>new Set([...p,drug.id]))
     addHist({type:'scan',query:drug.nameEN,result:drug.ingredient,score:0.95})
   }
-  const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
-  return(
-    <div>
+  if(ocr.stage==='idle') return(
+    <Card>
       {reportDrug&&<ReportModal drug={reportDrug} onClose={()=>setReportDrug(null)}/>}
+      <div style={{textAlign:'center',padding:'28px 0'}}>
+        <div style={{fontSize:52,marginBottom:12}}>📷</div>
+        <div style={{fontWeight:700,fontSize:18,marginBottom:8}}>Scan Prescription</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:24,lineHeight:1.6}}>
+          Upload a photo of your prescription or medicine packaging.<br/>
+          Real OCR will extract drug names — Traditional Chinese &amp; English.
+        </div>
+        <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
+          <button onClick={()=>fileRef.current.click()}
+            style={{padding:'12px 26px',background:C.primary,color:'#fff',border:'none',
+              borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>
+            📁 Upload Image
+          </button>
+          <button onClick={ocr.runDemo}
+            style={{padding:'12px 26px',background:'#f1f5f9',color:C.text,
+              border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>
+            🧪 Demo Prescription
+          </button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
+        <div style={{marginTop:14,fontSize:11,color:C.muted}}>Supports JPG · PNG · WEBP · HEIC</div>
+      </div>
+    </Card>
+  )
 
-      {stage==='idle'&&(
-        <Card style={{padding:0,overflow:'hidden'}}>
-          <div style={{display:'flex',borderBottom:`1px solid ${C.border}`}}>
-            {['front','back'].map(m=>(
-              <button key={m} onClick={()=>setMode(m)}
-                style={{flex:1,padding:'12px 0',border:'none',cursor:'pointer',fontFamily:'inherit',
-                  fontSize:14,fontWeight:mode===m?700:400,
-                  background:mode===m?C.primary+'10':'#fff',color:mode===m?C.primary:C.muted,
-                  borderBottom:mode===m?`3px solid ${C.primary}`:'3px solid transparent'}}>
-                {m==='front'?'📦 Front (Brand Name)':'🔬 Back (Ingredients)'}
-                {m==='front'&&frontDone&&<span style={{marginLeft:6,color:C.success}}>✓</span>}
-              </button>
-            ))}
-          </div>
-          <div style={{padding:32,textAlign:'center'}}>
-            <div style={{width:'100%',height:160,background:'#1a202c',borderRadius:10,marginBottom:20,
-              display:'flex',alignItems:'center',justifyContent:'center',position:'relative',overflow:'hidden'}}>
-              <div style={{border:'2px dashed rgba(255,255,255,.5)',borderRadius:8,width:'70%',height:'70%',
-                display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <span style={{color:'rgba(255,255,255,.5)',fontSize:13}}>
-                  {mode==='front'?'Position brand name inside frame':'Position ingredient list inside frame'}
-                </span>
-              </div>
-              {frontDone&&mode==='back'&&(
-                <div style={{position:'absolute',top:8,left:8,background:C.success,color:'#fff',
-                  fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:6}}>✓ Front captured</div>
-              )}
-            </div>
-            <div style={{marginBottom:8,fontSize:14,color:C.muted}}>
-              {mode==='front'?'Step 1: Capture the front of the package (brand name)':'Step 2: Capture the back of the package (ingredient list)'}
-            </div>
-            <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-              <button onClick={()=>capture(mode)}
-                style={{padding:'11px 22px',background:C.primary,color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                📷 Capture {mode==='front'?'Front':'Back'}
-              </button>
-              <button onClick={()=>fileRef.current.click()}
-                style={{padding:'11px 22px',background:'#f1f5f9',color:C.text,border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                📁 Upload Image
-              </button>
-              <button onClick={()=>{setFrontDone(true);capture('back')}}
-                style={{padding:'11px 22px',background:'#f1f5f9',color:C.text,border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-                🧪 Demo Prescription
-              </button>
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={()=>capture(mode)}/>
-          </div>
-        </Card>
+  if(ocr.stage==='loading'||ocr.stage==='recognizing'||ocr.stage==='matching') return(
+    <Card style={{textAlign:'center',padding:44}}>
+      <div style={{fontSize:48,marginBottom:14}}>
+        {ocr.stage==='matching'?'🔍':ocr.stage==='recognizing'?'🔤':'⚙️'}
+      </div>
+      <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>
+        {ocr.stage==='matching'?'Matching against NHI drug database...':
+         ocr.stage==='recognizing'?'Extracting text from image...':
+         'Initializing OCR engine...'}
+      </div>
+      {ocr.stage==='loading'&&(
+        <div style={{fontSize:13,color:C.muted,marginBottom:16}}>
+          {ocr.ocrStatus||'Loading Tesseract engine and language data...'}
+        </div>
       )}
-
-      {stage==='scanning'&&(
-        <Card style={{textAlign:'center',padding:48}}>
-          <div style={{fontSize:48,marginBottom:16}}>⚙️</div>
-          <div style={{fontWeight:600,fontSize:16,marginBottom:8}}>
-            {mode==='front'?'Capturing front of package...':'Running OCR pipeline...'}
+      {ocr.stage==='recognizing'&&(
+        <>
+          <div style={{background:'#e2e8f0',borderRadius:20,height:10,overflow:'hidden',marginBottom:8}}>
+            <div style={{height:'100%',borderRadius:20,background:C.primary,
+              width:`${ocr.progress}%`,transition:'width 0.1s ease'}}/>
           </div>
-          <div style={{color:C.muted,fontSize:14}}>
-            {mode==='back'?'OCR extraction → Text normalization → NHI dictionary matching':'Processing image...'}
-          </div>
-        </Card>
+          <div style={{fontSize:13,color:C.muted,marginBottom:8}}>{ocr.progress}%</div>
+        </>
       )}
+      {ocr.previewUrl&&(
+        <img src={ocr.previewUrl} alt="preview"
+          style={{maxHeight:110,maxWidth:'100%',borderRadius:8,opacity:.65,marginTop:8}}/>
+      )}
+    </Card>
+  )
 
-      {stage==='results'&&(
-        <div style={{display:'flex',flexDirection:'column',gap:12}}>
-          <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`}}>
-            <div style={{fontWeight:600,fontSize:14,marginBottom:4,color:'#166534'}}>✅ OCR Complete — Both sides scanned</div>
-            <div style={{fontFamily:'monospace',fontSize:12,color:C.muted,whiteSpace:'pre-wrap'}}>{DEMO_OCR_RESULT.rawText}</div>
-          </Card>
-          <div style={{fontWeight:700,fontSize:16,padding:'4px 0'}}>Identified Drugs ({DEMO_OCR_RESULT.matched.length})</div>
-          {DEMO_OCR_RESULT.matched.map(({drug,confidence})=>(
+  if(ocr.stage==='error') return(
+    <Card>
+      <div style={{textAlign:'center',padding:'28px 0'}}>
+        <div style={{fontSize:48,marginBottom:12}}>❌</div>
+        <div style={{fontWeight:700,fontSize:16,color:C.danger,marginBottom:8}}>OCR Failed</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:20,maxWidth:320,margin:'0 auto 20px'}}>
+          {ocr.ocrError}
+        </div>
+        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+          <button onClick={ocr.reset}
+            style={{padding:'10px 20px',background:'#f1f5f9',color:C.text,border:`1px solid ${C.border}`,
+              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>Try Again</button>
+          <button onClick={ocr.runDemo}
+            style={{padding:'10px 20px',background:C.primary,color:'#fff',border:'none',
+              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>🧪 Use Demo</button>
+        </div>
+      </div>
+    </Card>
+  )
+
+  // stage === 'done'
+  const {rawText,matched}=ocr.result
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      {reportDrug&&<ReportModal drug={reportDrug} onClose={()=>setReportDrug(null)}/>}
+      <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:600,fontSize:14,color:'#166534',marginBottom:6}}>
+              ✅ OCR Complete — {matched.length} drug{matched.length!==1?'s':''} identified
+            </div>
+            <div style={{fontFamily:'monospace',fontSize:11,color:C.muted,whiteSpace:'pre-wrap',
+              maxHeight:72,overflowY:'auto',background:'rgba(255,255,255,.7)',
+              padding:'6px 8px',borderRadius:6,lineHeight:1.5}}>
+              {rawText||'(no text extracted)'}
+            </div>
+          </div>
+          {ocr.previewUrl&&(
+            <img src={ocr.previewUrl} alt="scan"
+              style={{maxHeight:80,maxWidth:90,borderRadius:6,objectFit:'cover',flexShrink:0}}/>
+          )}
+        </div>
+      </Card>
+
+      {matched.length===0?(
+        <Card style={{textAlign:'center',padding:36,color:C.muted}}>
+          <div style={{fontSize:36,marginBottom:8}}>🤔</div>
+          <div style={{fontWeight:600,marginBottom:8}}>No drugs matched in NHI database</div>
+          <div style={{fontSize:13}}>OCR extracted text but couldn't identify any known drugs. Try the demo or a clearer image.</div>
+        </Card>
+      ):(
+        <>
+          <div style={{fontWeight:700,fontSize:16}}>Identified Drugs ({matched.length})</div>
+          {matched.map(({drug,confidence})=>(
             <Card key={drug.id}>
               <LowConfWarning score={confidence} name={drug.nameEN}/>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                 <div style={{flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                     <span style={{fontWeight:700,fontSize:16}}>{drug.ingredient}</span>
-                    <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,background:cc(confidence)+'22',color:cc(confidence),fontWeight:600}}>
+                    <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,
+                      background:cc(confidence)+'22',color:cc(confidence),fontWeight:600}}>
                       {Math.round(confidence*100)}% confidence
                     </span>
                   </div>
                   <div style={{fontSize:13,color:C.muted}}>{drug.nameEN} · {drug.nameZH}</div>
                   <div style={{fontSize:12,color:C.muted,marginTop:4}}>
                     {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
-                    {isStaff && ` · NT$ ${drug.price}`}
+                    {isStaff&&` · NT$ ${drug.price}`}
                   </div>
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:6,marginLeft:12}}>
                   <button onClick={()=>addMed(drug)} disabled={added.has(drug.id)}
                     style={{padding:'7px 12px',borderRadius:8,fontSize:13,fontWeight:600,border:'none',
                       cursor:added.has(drug.id)?'default':'pointer',
-                      background:added.has(drug.id)?'#e8f5e9':C.primary,color:added.has(drug.id)?C.success:'#fff'}}>
+                      background:added.has(drug.id)?'#e8f5e9':C.primary,
+                      color:added.has(drug.id)?C.success:'#fff'}}>
                     {added.has(drug.id)?'✓ Added':'+ Add'}
                   </button>
                   <button onClick={()=>setReportDrug(drug)}
@@ -539,17 +673,61 @@ function ScanRx(){
               </div>
             </Card>
           ))}
-          {added.size>0&&(
-            <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`,textAlign:'center'}}>
-              <div style={{fontWeight:600,color:'#166534'}}>{added.size} drug{added.size>1?'s':''} added to My Medications ✓</div>
-            </Card>
-          )}
-          <button onClick={()=>{setStage('idle');setAdded(new Set());setFrontDone(false)}}
-            style={{padding:'12px',borderRadius:10,border:`1px solid ${C.border}`,background:'#f8fafc',fontSize:14,fontWeight:600,cursor:'pointer',color:C.text}}>
-            Scan Another Prescription
-          </button>
-        </div>
+        </>
       )}
+
+      {added.size>0&&(
+        <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`,textAlign:'center'}}>
+          <div style={{fontWeight:600,color:'#166534'}}>
+            {added.size} drug{added.size>1?'s':''} added to My Medications ✓
+          </div>
+        </Card>
+      )}
+      <button onClick={()=>{ocr.reset();setAdded(new Set())}}
+        style={{padding:'12px',borderRadius:10,border:`1px solid ${C.border}`,
+          background:'#f8fafc',fontSize:14,fontWeight:600,cursor:'pointer',color:C.text}}>
+        Scan Another Prescription
+      </button>
+    </div>
+  )
+}
+
+// ── Auto Interaction Banner ────────────────────────────────────────────────
+function InteractionBanner({meds}){
+  const alerts=useMemo(()=>checkInteractions(meds),[meds])
+  if(alerts.length===0) return null
+  const worst=alerts[0]
+  const cfg=SEVERITY_CFG[worst.severity]||SEVERITY_CFG.LOW
+  return(
+    <div style={{background:cfg.bg,border:`2px solid ${cfg.border}`,borderRadius:12,
+      padding:'14px 16px',marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:alerts.length>0?10:0,flexWrap:'wrap'}}>
+        <span style={{fontSize:22}}>{cfg.icon}</span>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:14,color:cfg.color}}>
+            {alerts.length} Drug Interaction{alerts.length>1?'s':''} Detected in Your Meds
+          </div>
+          <div style={{fontSize:12,color:cfg.color,opacity:.85,marginTop:1}}>
+            Highest severity: {worst.severity} · {worst.drugA.ingredient} ↔ {worst.drugB.ingredient}
+          </div>
+        </div>
+        <span style={{fontSize:11,fontWeight:600,color:cfg.color,
+          background:'rgba(255,255,255,.65)',padding:'3px 9px',borderRadius:10,flexShrink:0}}>
+          See ⚠️ Interactions tab
+        </span>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {alerts.slice(0,3).map((a,i)=>{
+          const c2=SEVERITY_CFG[a.severity]||SEVERITY_CFG.LOW
+          return(
+            <div key={i} style={{background:'rgba(255,255,255,.55)',borderRadius:8,
+              padding:'8px 10px',fontSize:12}}>
+              <span style={{fontWeight:700,color:c2.color}}>{c2.icon} {a.drugA.ingredient} + {a.drugB.ingredient} </span>
+              <span style={{color:'#374151'}}>{a.en.length>90?a.en.slice(0,90)+'…':a.en}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -557,7 +735,8 @@ function ScanRx(){
 // ── My Medications ─────────────────────────────────────────────────────────
 function MyMeds(){
   const [meds,setMeds]=useState([
-    {...DRUGS[0],times:['08:00','20:00'],reminderOn:true},
+    {...DRUGS[6],times:['09:00'],reminderOn:true},
+    {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
     {...DRUGS[7],times:['08:00'],reminderOn:true},
   ])
   const {isStaff}=useAuth()
@@ -566,6 +745,7 @@ function MyMeds(){
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      {meds.length>=2&&<InteractionBanner meds={meds}/>}
       {meds.length===0?(
         <Card style={{textAlign:'center',padding:48,color:C.muted}}>
           <div style={{fontSize:48,marginBottom:12}}>💊</div>
