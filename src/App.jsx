@@ -450,9 +450,64 @@ function DrugSearch(){
   )
 }
 
+// ── Canvas Image Preprocessing (Grayscale + Otsu Binarization + Upscale) ──
+async function preprocessForOCR(file) {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onerror = () => resolve(file)
+    img.onload = () => {
+      try {
+        // Upscale small images; cap at 3000px on longest side for Tesseract
+        const scale = Math.min(3, Math.max(1, 2400 / Math.max(img.width, img.height)))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        // White background before drawing (handles transparent PNGs)
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+
+        const imgData = ctx.getImageData(0, 0, w, h)
+        const d = imgData.data
+        const n = w * h
+
+        // Step 1: Grayscale (luminance formula)
+        const gray = new Uint8Array(n)
+        for (let i = 0; i < n; i++) {
+          gray[i] = Math.round(0.299*d[i*4] + 0.587*d[i*4+1] + 0.114*d[i*4+2])
+        }
+
+        // Step 2: Otsu auto-threshold
+        const hist = new Int32Array(256)
+        for (let i = 0; i < n; i++) hist[gray[i]]++
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i]
+        let sumB = 0, wB = 0, varMax = 0, threshold = 128
+        for (let t = 0; t < 256; t++) {
+          wB += hist[t]; if (!wB || wB === n) continue
+          const wF = n - wB
+          sumB += t * hist[t]
+          const mB = sumB / wB, mF = (sum - sumB) / wF
+          const v = wB * wF * (mB - mF) ** 2
+          if (v > varMax) { varMax = v; threshold = t }
+        }
+
+        // Step 3: Binarize — pixels darker than threshold → black, rest → white
+        for (let i = 0; i < n; i++) {
+          const v = gray[i] <= threshold ? 0 : 255
+          d[i*4] = d[i*4+1] = d[i*4+2] = v; d[i*4+3] = 255
+        }
+        ctx.putImageData(imgData, 0, 0)
+        canvas.toBlob(blob => resolve(blob || file), 'image/png')
+      } catch { resolve(file) }
+    }
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 // ── OCR Hook (real Tesseract.js + demo mode) ──────────────────────────────
 function useOCR() {
-  const [stage,setStage]=useState('idle')   // idle|loading|recognizing|matching|done|error
+  const [stage,setStage]=useState('idle')   // idle|preprocessing|loading|recognizing|matching|done|error
   const [progress,setProgress]=useState(0)
   const [ocrStatus,setOcrStatus]=useState('')
   const [result,setResult]=useState(null)
@@ -461,8 +516,13 @@ function useOCR() {
 
   async function recognize(imageFile) {
     const url=URL.createObjectURL(imageFile)
-    setPreviewUrl(url); setStage('loading'); setProgress(0); setOcrError(null); setResult(null)
+    setPreviewUrl(url); setStage('preprocessing'); setProgress(0); setOcrError(null); setResult(null)
     try {
+      // Canvas preprocessing: grayscale + Otsu binarization + upscale
+      const processedBlob=await preprocessForOCR(imageFile)
+      const processedUrl=URL.createObjectURL(processedBlob)
+
+      setStage('loading')
       const {createWorker}=await import('tesseract.js')
       const worker=await createWorker(['eng','chi_tra'],1,{
         logger: m=>{
@@ -473,8 +533,9 @@ function useOCR() {
           }
         }
       })
-      const {data:{text}}=await worker.recognize(url)
+      const {data:{text}}=await worker.recognize(processedUrl)
       await worker.terminate()
+      URL.revokeObjectURL(processedUrl)
       setStage('matching')
       const matched=matchOcrText(text)
       setResult({rawText:text.trim(),matched})
@@ -554,18 +615,41 @@ function ScanRx(){
     </Card>
   )
 
-  if(ocr.stage==='loading'||ocr.stage==='recognizing'||ocr.stage==='matching') return(
+  if(['preprocessing','loading','recognizing','matching'].includes(ocr.stage)) return(
     <Card style={{textAlign:'center',padding:44}}>
       <div style={{fontSize:48,marginBottom:14}}>
-        {ocr.stage==='matching'?'🔍':ocr.stage==='recognizing'?'🔤':'⚙️'}
+        {ocr.stage==='matching'?'🔍':ocr.stage==='recognizing'?'🔤':ocr.stage==='preprocessing'?'🖼️':'⚙️'}
       </div>
       <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>
-        {ocr.stage==='matching'?'Matching against NHI drug database...':
+        {ocr.stage==='matching'   ?'Matching against NHI drug database...':
          ocr.stage==='recognizing'?'Extracting text from image...':
+         ocr.stage==='preprocessing'?'Enhancing image quality (binarization + upscale)...':
          'Initializing OCR engine...'}
       </div>
+      {/* Pipeline step indicator */}
+      <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:16,flexWrap:'wrap'}}>
+        {[
+          ['preprocessing','🖼️ Pre-process'],
+          ['loading','⚙️ Init OCR'],
+          ['recognizing','🔤 Read text'],
+          ['matching','🔍 Match drugs'],
+        ].map(([s,label],i)=>{
+          const stages=['preprocessing','loading','recognizing','matching']
+          const idx=stages.indexOf(ocr.stage)
+          const thisIdx=stages.indexOf(s)
+          const done=thisIdx<idx, active=thisIdx===idx
+          return(
+            <span key={s} style={{fontSize:11,fontWeight:600,padding:'3px 9px',borderRadius:20,
+              background:done?'#dcfce7':active?C.primary+'18':'#f1f5f9',
+              color:done?'#166534':active?C.primary:C.muted,
+              border:`1px solid ${done?'#86efac':active?C.primary+'44':C.border}`}}>
+              {done?'✓ ':''}{label}
+            </span>
+          )
+        })}
+      </div>
       {ocr.stage==='loading'&&(
-        <div style={{fontSize:13,color:C.muted,marginBottom:16}}>
+        <div style={{fontSize:13,color:C.muted,marginBottom:8}}>
           {ocr.ocrStatus||'Loading Tesseract engine and language data...'}
         </div>
       )}
@@ -580,7 +664,7 @@ function ScanRx(){
       )}
       {ocr.previewUrl&&(
         <img src={ocr.previewUrl} alt="preview"
-          style={{maxHeight:110,maxWidth:'100%',borderRadius:8,opacity:.65,marginTop:8}}/>
+          style={{maxHeight:100,maxWidth:'100%',borderRadius:8,opacity:.65,marginTop:8}}/>
       )}
     </Card>
   )
@@ -607,72 +691,109 @@ function ScanRx(){
 
   // stage === 'done'
   const {rawText,matched}=ocr.result
+  const highConf=matched.filter(m=>m.confidence>=LOW_CONF)
+  const lowConf=matched.filter(m=>m.confidence<LOW_CONF)
+
+  function DrugResultCard({drug,confidence}){
+    return(
+      <Card>
+        <LowConfWarning score={confidence} name={drug.nameEN}/>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+              <span style={{fontWeight:700,fontSize:16}}>{drug.ingredient}</span>
+              <DrugClassBadge raw={drug.drugClass}/>
+              <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,
+                background:cc(confidence)+'22',color:cc(confidence),fontWeight:600}}>
+                {Math.round(confidence*100)}% confidence
+              </span>
+            </div>
+            <div style={{fontSize:13,color:C.muted}}>{drug.nameEN} · {drug.nameZH}</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+              {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
+              {isStaff&&` · NT$ ${drug.price}`}
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:6,marginLeft:12,flexShrink:0}}>
+            <button onClick={()=>addMed(drug)} disabled={added.has(drug.id)}
+              style={{padding:'7px 12px',borderRadius:8,fontSize:13,fontWeight:600,border:'none',
+                cursor:added.has(drug.id)?'default':'pointer',
+                background:added.has(drug.id)?'#e8f5e9':C.primary,
+                color:added.has(drug.id)?C.success:'#fff'}}>
+              {added.has(drug.id)?'✓ Added':'+ Add'}
+            </button>
+            <button onClick={()=>setReportDrug(drug)}
+              style={{padding:'7px 12px',borderRadius:8,fontSize:12,fontWeight:500,
+                border:`1px solid ${C.danger}44`,background:'#fff5f5',color:C.danger,cursor:'pointer'}}>
+              ⚠ Error
+            </button>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
   return(
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
       {reportDrug&&<ReportModal drug={reportDrug} onClose={()=>setReportDrug(null)}/>}
-      <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`}}>
+
+      {/* OCR result summary bar */}
+      <Card style={{background: matched.length>0?'#f0fdf4':'#fffbeb',
+        border:`1px solid ${matched.length>0?C.success:'#fbbf24'}`}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:600,fontSize:14,color:'#166534',marginBottom:6}}>
-              ✅ OCR Complete — {matched.length} drug{matched.length!==1?'s':''} identified
+            <div style={{fontWeight:600,fontSize:14,
+              color:matched.length>0?'#166534':'#92400e',marginBottom:6}}>
+              {matched.length>0
+                ? `✅ OCR Complete — ${matched.length} drug${matched.length!==1?'s':''} identified (${highConf.length} high confidence)`
+                : '⚠️ OCR Complete — no drugs identified in database'}
             </div>
-            <div style={{fontFamily:'monospace',fontSize:11,color:C.muted,whiteSpace:'pre-wrap',
-              maxHeight:72,overflowY:'auto',background:'rgba(255,255,255,.7)',
+            <div style={{fontSize:11,color:C.muted,fontFamily:'monospace',whiteSpace:'pre-wrap',
+              maxHeight:68,overflowY:'auto',background:'rgba(255,255,255,.7)',
               padding:'6px 8px',borderRadius:6,lineHeight:1.5}}>
-              {rawText||'(no text extracted)'}
+              {rawText||'(no text extracted — image may be too dark or blurry)'}
             </div>
           </div>
           {ocr.previewUrl&&(
             <img src={ocr.previewUrl} alt="scan"
-              style={{maxHeight:80,maxWidth:90,borderRadius:6,objectFit:'cover',flexShrink:0}}/>
+              style={{maxHeight:76,maxWidth:86,borderRadius:6,objectFit:'cover',flexShrink:0}}/>
           )}
         </div>
       </Card>
 
-      {matched.length===0?(
-        <Card style={{textAlign:'center',padding:36,color:C.muted}}>
+      {matched.length===0&&(
+        <Card style={{textAlign:'center',padding:32,color:C.muted}}>
           <div style={{fontSize:36,marginBottom:8}}>🤔</div>
-          <div style={{fontWeight:600,marginBottom:8}}>No drugs matched in NHI database</div>
-          <div style={{fontSize:13}}>OCR extracted text but couldn't identify any known drugs. Try the demo or a clearer image.</div>
+          <div style={{fontWeight:600,marginBottom:6}}>No drugs matched in NHI database</div>
+          <div style={{fontSize:13,marginBottom:16}}>
+            OCR couldn't find recognizable drug names. Try a clearer photo,<br/>or search manually in the 🔍 Drug Search tab.
+          </div>
+          <button onClick={ocr.runDemo}
+            style={{padding:'8px 18px',background:C.primary,color:'#fff',border:'none',
+              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+            🧪 Try Demo Prescription
+          </button>
         </Card>
-      ):(
+      )}
+
+      {highConf.length>0&&(
         <>
-          <div style={{fontWeight:700,fontSize:16}}>Identified Drugs ({matched.length})</div>
-          {matched.map(({drug,confidence})=>(
-            <Card key={drug.id}>
-              <LowConfWarning score={confidence} name={drug.nameEN}/>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-                <div style={{flex:1}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                    <span style={{fontWeight:700,fontSize:16}}>{drug.ingredient}</span>
-                    <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,
-                      background:cc(confidence)+'22',color:cc(confidence),fontWeight:600}}>
-                      {Math.round(confidence*100)}% confidence
-                    </span>
-                  </div>
-                  <div style={{fontSize:13,color:C.muted}}>{drug.nameEN} · {drug.nameZH}</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>
-                    {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
-                    {isStaff&&` · NT$ ${drug.price}`}
-                  </div>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:6,marginLeft:12}}>
-                  <button onClick={()=>addMed(drug)} disabled={added.has(drug.id)}
-                    style={{padding:'7px 12px',borderRadius:8,fontSize:13,fontWeight:600,border:'none',
-                      cursor:added.has(drug.id)?'default':'pointer',
-                      background:added.has(drug.id)?'#e8f5e9':C.primary,
-                      color:added.has(drug.id)?C.success:'#fff'}}>
-                    {added.has(drug.id)?'✓ Added':'+ Add'}
-                  </button>
-                  <button onClick={()=>setReportDrug(drug)}
-                    style={{padding:'7px 12px',borderRadius:8,fontSize:12,fontWeight:500,
-                      border:`1px solid ${C.danger}44`,background:'#fff5f5',color:C.danger,cursor:'pointer'}}>
-                    ⚠ Error
-                  </button>
-                </div>
-              </div>
-            </Card>
-          ))}
+          <div style={{fontWeight:700,fontSize:15,color:'#166534'}}>
+            ✅ High Confidence ({highConf.length})
+          </div>
+          {highConf.map(m=><DrugResultCard key={m.drug.id} {...m}/>)}
+        </>
+      )}
+
+      {lowConf.length>0&&(
+        <>
+          <div style={{fontWeight:700,fontSize:14,color:C.warning,marginTop:4}}>
+            ⚠️ Possible Matches — verify before adding ({lowConf.length})
+          </div>
+          <div style={{fontSize:12,color:C.muted,marginTop:-6}}>
+            These were partially matched from OCR text. Check name and dosage carefully.
+          </div>
+          {lowConf.map(m=><DrugResultCard key={m.drug.id} {...m}/>)}
         </>
       )}
 
@@ -683,6 +804,7 @@ function ScanRx(){
           </div>
         </Card>
       )}
+
       <button onClick={()=>{ocr.reset();setAdded(new Set())}}
         style={{padding:'12px',borderRadius:10,border:`1px solid ${C.border}`,
           background:'#f8fafc',fontSize:14,fontWeight:600,cursor:'pointer',color:C.text}}>

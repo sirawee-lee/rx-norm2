@@ -248,32 +248,178 @@ export function findAlternatives(drug, maxResults = 8) {
     .slice(0, maxResults)
 }
 
-// Match OCR raw text against DRUGS_LIVE, return top 5 with confidence scores
+// Levenshtein distance (optimised for short strings ≤ 30 chars)
+function lev(a, b) {
+  if (Math.abs(a.length - b.length) > 3) return 99
+  const m = a.length, n = b.length
+  const row = Array.from({length: n + 1}, (_, j) => j)
+  for (let i = 1; i <= m; i++) {
+    let prev = i
+    for (let j = 1; j <= n; j++) {
+      const cur = a[i-1] === b[j-1] ? row[j-1] : 1 + Math.min(row[j], prev, row[j-1])
+      row[j-1] = prev; prev = cur
+    }
+    row[n] = prev
+  }
+  return row[n]
+}
+
+// Noise words that appear on packaging/forms but are NOT drug names
+const OCR_NOISE = new Set([
+  'SUPPLY','WITHOUT','PRESCRIPTION','ILLEGAL','KEEP','REACH','CHILDREN','PLEASE',
+  'STORE','ROOM','TEMPERATURE','AWAY','PROTECTED','LIGHT','SEALED','EXPIRY',
+  'FILM','COATED','ENTERIC','MODIFIED','RELEASE','EXTENDED','SUSTAINED',
+  'ORAL','INTRAVENOUS','INTRAMUSCULAR','SUBCUTANEOUS','TOPICAL',
+  'DOSE','DAILY','TWICE','THREE','ONCE','AFTER','BEFORE','MEAL','MEALS','FOOD',
+  'DOCTOR','PATIENT','HOSPITAL','CLINIC','PHARMACY','PHARMACIST','DISPENSED',
+  'TAKE','TABLET','TABLETS','CAPSULE','CAPSULES','VIAL','AMPOULE','INJECTION',
+  'EACH','CONTAINING','EQUIVALENT','BRAND','NAME','GENERIC','BATCH','PACK',
+  'DATE','TIME','QUANTITY','TOTAL','UNIT','UNITS','DAYS','NUMBER',
+  'WARNING','CAUTION','DIRECTIONS','ADMINISTRATION','DOSAGE','SIDE','EFFECTS',
+])
+
+// Step-function confidence: more honest than linear
+function ocrConfidence(score) {
+  if (score >= 22) return 0.95
+  if (score >= 16) return 0.88
+  if (score >= 11) return 0.80
+  if (score >= 8)  return 0.73
+  if (score >= 6)  return 0.65
+  return 0.55
+}
+
+// Extract drug-name candidate tokens.
+// Returns { tokens: string[], parenBrands: Set<string> }
+// Tokens inside (...) in Taiwan Rx are almost always brand names — flagged separately.
+export function extractOcrCandidates(text) {
+  const upper = text.toUpperCase()
+
+  // Step 1: collect parenthesised groups → brand-name hints
+  const parenBrands = new Set()
+  let pm
+  const parenRx = /\(([^)]{2,40})\)/g
+  while ((pm = parenRx.exec(upper)) !== null) {
+    pm[1].split(/[\s,;&+/\-]+/).forEach(t => {
+      const clean = t.replace(/[^A-Z0-9]/g, '')
+      if (clean.length >= 4 && !OCR_NOISE.has(clean)) parenBrands.add(clean)
+    })
+  }
+
+  // Step 2: all tokens — strip every non-alphanumeric / non-Han char
+  const tokens = upper
+    .replace(/[^A-Z0-9\s一-鿿]/g, ' ')
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 4 && !OCR_NOISE.has(t) && !/^\d+(\.\d+)?[A-Z]*$/.test(t))
+
+  return { tokens, parenBrands }
+}
+
+// Match OCR raw text against DRUGS_LIVE.
+// Scoring priority:
+//   1. Exact brand/ingredient in parentheses → very high (brand name hint in Taiwan Rx)
+//   2. Exact substring anywhere in text
+//   3. Levenshtein ≤ 2 fuzzy (handles OCR typos)
+//   4. Chinese name substring
+// Threshold = 6 to suppress noise accumulation.
 export function matchOcrText(rawText) {
   if (!rawText?.trim()) return []
+
   const upper = rawText.toUpperCase()
-  const tokens = upper.split(/[\s\n\r,;():\-/]+/).filter(t => t.length >= 3)
+  const { tokens, parenBrands } = extractOcrCandidates(rawText)
+  const tokenSet = new Set(tokens)
+
   const scored = []
+
   for (const drug of DRUGS_LIVE) {
     let score = 0
-    const ingrParts = drug.ingredient.toUpperCase().split(/\s+/).filter(p => p.length >= 4)
-    for (const part of ingrParts) {
-      if (tokens.some(t => t === part || (t.length >= 5 && part.startsWith(t)) || (part.length >= 5 && t.startsWith(part)))) score += 3
-      else if (upper.includes(part)) score += 2
+
+    // ── 1. NHI drug code exact (12 pts) ────────────────────────────────────
+    if (drug.id && upper.includes(drug.id)) score += 12
+
+    // ── 2. ATC code exact (6 pts) ──────────────────────────────────────────
+    if (drug.atc && drug.atc.length >= 4 && upper.includes(drug.atc)) score += 6
+
+    // ── 3. Ingredient: exact → token → Levenshtein ─────────────────────────
+    const ingrU = drug.ingredient.toUpperCase()
+    const ingrParts = ingrU.split(/\s+/).filter(p => p.length >= 4)
+    let ingrHits = 0
+    for (const ip of ingrParts) {
+      if (upper.includes(ip)) {
+        score += 5; ingrHits++
+      } else {
+        let best = 99
+        for (const t of tokens) {
+          if (Math.abs(t.length - ip.length) > 3 || t.length < 5 || ip.length < 5) continue
+          const d = lev(t, ip)
+          if (d < best) best = d
+          if (best === 0) break
+        }
+        if (best === 0)                        { score += 4; ingrHits++ }
+        else if (best === 1)                   { score += 3; ingrHits++ }
+        else if (best === 2 && ip.length >= 7) { score += 1; ingrHits++ }
+      }
     }
-    if (upper.includes(drug.id.toUpperCase())) score += 5
-    if (drug.atc && upper.includes(drug.atc.toUpperCase())) score += 3
-    const nameParts = drug.nameEN.toUpperCase().split(/\s+/).filter(p => p.length >= 6)
-    for (const part of nameParts) {
-      if (tokens.some(t => t === part)) score += 2
-      else if (upper.includes(part)) score += 1
+    if (ingrParts.length > 1 && ingrHits === ingrParts.length) score += 5
+
+    // ── 4. Brand / trade name — exact is KING, paren match = extra bonus ───
+    const nameWords = drug.nameEN.toUpperCase().split(/[\s/\-]+/).filter(p => p.length >= 4)
+    for (const nw of nameWords) {
+      if (parenBrands.has(nw)) {
+        // Exact match inside parens = highest brand signal (8 pts)
+        score += 8
+      } else if (upper.includes(nw)) {
+        // Exact substring in full text (5 pts)
+        score += 5
+      } else if (tokenSet.has(nw)) {
+        score += 4
+      } else {
+        // Fuzzy — check both regular tokens AND paren brands
+        const allSearchTokens = [...tokens, ...parenBrands]
+        let best = 99
+        for (const t of allSearchTokens) {
+          if (Math.abs(t.length - nw.length) > 2 || t.length < 4) continue
+          const d = lev(t, nw)
+          if (d < best) best = d
+          if (best === 0) break
+        }
+        // Fuzzy brand inside parens gets extra weight
+        if (best === 0) {
+          score += parenBrands.has(nw) ? 7 : 2
+        } else if (best === 1 && nw.length >= 6) {
+          // Check if the fuzzy-matching token came from parens
+          const fromParen = [...parenBrands].some(pb => lev(pb, nw) === 1)
+          score += fromParen ? 5 : 1
+        }
+      }
     }
-    if (score >= 2) scored.push({ drug, score })
+
+    // ── 5. Traditional Chinese substring (>=3 consecutive Han chars) ────────
+    if (drug.nameZH) {
+      const han = drug.nameZH.replace(/[^一-鿿]/g, '')
+      let found = false
+      for (let len = Math.min(4, han.length); len >= 3 && !found; len--) {
+        for (let s = 0; s <= han.length - len; s++) {
+          if (rawText.includes(han.slice(s, s + len))) { score += len + 2; found = true; break }
+        }
+      }
+    }
+
+    // Threshold raised to 6 — prevents noise accumulation from winning
+    if (score >= 6) scored.push({ drug, score })
   }
-  return scored
+
+  // Deduplicate by ingredient — keep highest score per ingredient
+  const best = new Map()
+  for (const item of scored) {
+    const k = item.drug.ingredient.toLowerCase()
+    if (!best.has(k) || best.get(k).score < item.score) best.set(k, item)
+  }
+
+  return [...best.values()]
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map(({ drug, score }) => ({ drug, confidence: Math.min(0.97, 0.55 + score * 0.06) }))
+    .slice(0, 8)
+    .map(({ drug, score }) => ({ drug, confidence: ocrConfidence(score) }))
 }
 
 // Check interactions for a list of drugs (each must have .ingredient)
