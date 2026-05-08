@@ -96,6 +96,27 @@ const LANG = {
   }
 }
 
+function dosageFormEN(form){
+  const map = {
+    '膜衣錠': 'Film-coated tablet',
+    '錠劑': 'Tablet',
+    '膠囊': 'Capsule',
+    '軟膠囊': 'Soft capsule',
+    '口服液': 'Oral solution',
+    '懸浮液': 'Suspension',
+    '注射液': 'Injection',
+    '注射劑': 'Injection',
+    '乳膏': 'Cream',
+    '軟膏': 'Ointment',
+    '貼片': 'Patch',
+    '粉劑': 'Powder',
+    '顆粒劑': 'Granules',
+    '糖漿': 'Syrup'
+  }
+
+  return map[form] || form
+}
+
 const LOW_CONF = 0.75
 
 // module-level history (max 50) shared across tabs
@@ -575,7 +596,7 @@ function DrugSearch(){
       <div ref={wrapRef} style={{position:'relative',marginBottom:16}}>
         <input value={query} onChange={e=>onType(e.target.value)}
           onFocus={()=>query.length>=1&&results.length>0&&setShowDD(true)}
-          placeholder="Search by drug name (EN/中文), ingredient, NHI code, or ATC code..."
+          placeholder="Search..."
           style={{width:'100%',padding:'12px 16px',fontSize:15,borderRadius:10,fontFamily:'inherit',
             border:`1px solid ${showDD?C.primary:C.border}`,outline:'none',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}}/>
 
@@ -639,14 +660,14 @@ function DrugSearch(){
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
             {[
-              ['NHI Code (健保碼)', selected.id],
+              ['NHI Code', selected.id],
               ['ATC Code', selected.atc],
-              ['English Name', selected.nameEN],
-              ['Chinese Name (中文名)', selected.nameZH],
-              ['Dosage Form (劑型)', selected.form],
-              ['Strength (劑量)', selected.strength],
+              ['Brand Name', selected.nameEN],
+              ['Chinese Name', selected.nameZH],
+              ['Dosage Form', dosageFormEN(selected.form)],
+              ['Dosage', selected.strength],
               isStaff ? ['NHI Price (NT$)', `NT$ ${selected.price}`] : null,
-              ['Manufacturer (製造商)', selected.manufacturer],
+              ['Manufacturer', selected.manufacturer],
             ].filter(Boolean).map(([l,v])=>(
               <div key={l} style={{background:'#f8fafc',borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>{l}</div>
@@ -1334,7 +1355,7 @@ function ScanRx(){
               color:C.muted,
               marginTop:4
             }}>
-              {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
+              {drug.id} · ATC: {drug.atc} · {dosageFormEN(drug.form)} {drug.strength}
               {isStaff&&` · NT$ ${drug.price}`}
             </div>
           </div>
@@ -1604,7 +1625,7 @@ function MyMeds(){
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:16}}>{med.ingredient}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{med.nameEN}</div>
-              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{med.form} · {med.strength}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{dosageFormEN(med.form)} · {med.strength}</div>
               <div style={{marginTop:12}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>⏰ Reminder times:</div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
