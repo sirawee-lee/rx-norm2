@@ -39,11 +39,11 @@ const C = {
 const LANG = {
   en:{
     appName:'RxNorm Taiwan',
-    scan:'Scan Obat',
-    search:'Cari Obat',
-    meds:'Obat Saya',
+    scan:'Scan Drugs',
+    search:'Search Drugs',
+    meds:'My Drugs',
     settings:'Settings',
-    interact:'Interaksi Obat',
+    interact:'Drugs Interaction',
     admin:'Admin Panel',
     signIn:'Sign In',
     signOut:'Sign Out',
