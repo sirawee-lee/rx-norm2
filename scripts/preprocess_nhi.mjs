@@ -8,7 +8,7 @@ import { dirname, join } from 'path'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dir, '..')
-const INPUT = join(ROOT, 'public', 'nhi_data.csv')
+const INPUT = join(ROOT, 'data', 'nhi_data.csv')
 const OUTPUT = join(ROOT, 'public', 'nhi_drugs.json')
 
 // Minimal RFC-4180 CSV row parser (handles quoted fields)

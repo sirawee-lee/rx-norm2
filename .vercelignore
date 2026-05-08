@@ -1,0 +1,4 @@
+data/
+public/nhi_data.csv
+*.csv
+node_modules/
