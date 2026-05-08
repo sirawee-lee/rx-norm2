@@ -192,44 +192,223 @@ function ReportModal({drug,onClose}){
 
 function LoginModal({onClose}){
   const {login,error,setError}=useAuth()
-  const [u,setU]=useState(''); const [p,setP]=useState(''); const [loading,setLoading]=useState(false)
+  const [u,setU]=useState('')
+  const [p,setP]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [remember,setRemember]=useState(true)
+
   function submit(e){
-    e.preventDefault(); setLoading(true)
-    setTimeout(()=>{ const ok=login(u,p); setLoading(false); if(ok) onClose() },400)
+    e.preventDefault()
+    setLoading(true)
+
+    setTimeout(()=>{
+      const ok=login(u,p)
+      setLoading(false)
+      if(ok) onClose()
+    },400)
   }
-  const inp={width:'100%',padding:'10px 12px',fontSize:14,borderRadius:8,border:`1px solid ${C.border}`,outline:'none',marginTop:4,fontFamily:'inherit'}
+
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}
-      onClick={e=>{if(e.target===e.currentTarget){setError('');onClose()}}}>
-      <div style={{background:'#fff',borderRadius:16,padding:28,width:360,boxShadow:'0 20px 60px rgba(0,0,0,.2)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:18}}>Sign In</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:2}}>RxNorm Taiwan — Staff & Admin Portal</div>
-          </div>
-          <button onClick={()=>{setError('');onClose()}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:C.muted}}>×</button>
+    <div
+      style={{
+        position:'fixed',
+        inset:0,
+        background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        zIndex:1000,
+        padding:18
+      }}
+      onClick={e=>{
+        if(e.target===e.currentTarget){
+          setError('')
+          onClose()
+        }
+      }}
+    >
+      <div style={{
+        width:'100%',
+        maxWidth:330,
+        background:'#fff',
+        borderRadius:24,
+        padding:'34px 24px 28px',
+        boxShadow:'0 28px 70px rgba(15,23,42,.28)',
+        position:'relative'
+      }}>
+        <button
+          onClick={()=>{
+            setError('')
+            onClose()
+          }}
+          style={{
+            position:'absolute',
+            top:14,
+            right:16,
+            border:'none',
+            background:'transparent',
+            color:'#94A3B8',
+            fontSize:22,
+            cursor:'pointer'
+          }}
+        >
+          ×
+        </button>
+
+        <div style={{
+          textAlign:'center',
+          fontSize:28,
+          fontWeight:900,
+          color:'#475569',
+          marginBottom:28
+        }}>
+          Login
         </div>
+
         <form onSubmit={submit}>
-          <div style={{marginBottom:12}}><label style={{fontSize:13,fontWeight:500}}>Username</label>
-            <input style={inp} value={u} autoFocus onChange={e=>setU(e.target.value)} placeholder="admin / staff / doctor"/></div>
-          <div style={{marginBottom:4}}><label style={{fontSize:13,fontWeight:500}}>Password</label>
-            <input style={inp} type="password" value={p} onChange={e=>setP(e.target.value)} placeholder="••••••••"/></div>
-          {error&&<div style={{color:C.danger,fontSize:13,marginTop:8}}>{error}</div>}
-          <button type="submit" disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'10px',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',border:'none',background:C.primary,color:'#fff'}}>
-            {loading?'Signing in...':'Sign In'}
+          <div style={loginInputWrapStyle}>
+            <span style={loginIconStyle}>👤</span>
+            <input
+              value={u}
+              autoFocus
+              onChange={e=>setU(e.target.value)}
+              placeholder="Username"
+              style={loginInputStyle}
+            />
+          </div>
+
+          <div style={loginInputWrapStyle}>
+            <span style={loginIconStyle}>🔒</span>
+            <input
+              type="password"
+              value={p}
+              onChange={e=>setP(e.target.value)}
+              placeholder="Password"
+              style={loginInputStyle}
+            />
+          </div>
+
+          <label style={{
+            display:'flex',
+            alignItems:'center',
+            gap:8,
+            fontSize:12,
+            color:'#94A3B8',
+            margin:'10px 2px 18px',
+            cursor:'pointer'
+          }}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e=>setRemember(e.target.checked)}
+              style={{accentColor:'#0E9F6E'}}
+            />
+            Remember me
+          </label>
+
+          {error && (
+            <div style={{
+              color:'#DC2626',
+              fontSize:12,
+              marginBottom:12,
+              textAlign:'center',
+              fontWeight:700
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width:'100%',
+              padding:'13px',
+              borderRadius:999,
+              border:'none',
+              background:loading
+                ? '#94A3B8'
+                : 'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+              color:'#fff',
+              fontSize:15,
+              fontWeight:900,
+              letterSpacing:.4,
+              cursor:loading?'not-allowed':'pointer',
+              boxShadow:'0 12px 24px rgba(14,159,110,.22)'
+            }}
+          >
+            {loading?'SIGNING IN...':'LOG IN'}
           </button>
+
+          <div style={{
+            textAlign:'center',
+            fontSize:12,
+            color:'#94A3B8',
+            marginTop:14
+          }}>
+            Forget Password
+          </div>
         </form>
-        <div style={{marginTop:20,padding:12,background:'#f8fafc',borderRadius:8,fontSize:12,color:C.muted}}>
-          <div style={{fontWeight:600,marginBottom:6,color:C.text}}>Demo accounts:</div>
-          <div>👑 <b>admin</b> / admin123 — full admin access</div>
-          <div>🏥 <b>staff</b> / staff123 — hospital staff</div>
-          <div>🏥 <b>doctor</b> / doctor123 — hospital staff</div>
-          <div style={{marginTop:6}}>💡 Close this to continue as guest</div>
+
+        <div style={{
+          marginTop:34,
+          padding:12,
+          borderRadius:16,
+          background:'#F8FAFC',
+          fontSize:11,
+          color:'#64748B',
+          lineHeight:1.65
+        }}>
+          <div style={{fontWeight:800,color:'#334155',marginBottom:4}}>
+            Demo accounts
+          </div>
+          <div>admin / admin123</div>
+          <div>staff / staff123</div>
+          <div>doctor / doctor123</div>
+        </div>
+
+        <div style={{
+          marginTop:18,
+          textAlign:'center',
+          fontSize:12,
+          color:'#94A3B8'
+        }}>
+          Not a member? <span style={{color:'#0E9F6E',fontWeight:700}}>Sign up now</span>
         </div>
       </div>
     </div>
   )
+}
+
+const loginInputWrapStyle = {
+  width:'100%',
+  height:44,
+  borderRadius:999,
+  background:'#F1F5F9',
+  display:'flex',
+  alignItems:'center',
+  gap:10,
+  padding:'0 15px',
+  marginBottom:14,
+  border:'1px solid #E2E8F0'
+}
+
+const loginIconStyle = {
+  fontSize:15,
+  color:'#94A3B8',
+  width:18,
+  textAlign:'center',
+  opacity:.8
+}
+
+const loginInputStyle = {
+  flex:1,
+  border:'none',
+  outline:'none',
+  background:'transparent',
+  fontSize:14,
+  color:'#0F172A',
+  fontFamily:'inherit'
 }
 
 function NavBar({showLogin,nhiCount}){
