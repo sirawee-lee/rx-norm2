@@ -752,60 +752,104 @@ function DrugSearch(){
 }
 
 // ── Canvas Image Preprocessing (Grayscale + Otsu Binarization + Upscale) ──
-async function preprocessForOCR(file) {
+async function preprocessForOCR(file, mode='standard') {
   return new Promise(resolve => {
     const img = new Image()
     img.onerror = () => resolve(file)
+
     img.onload = () => {
       try {
-        // Upscale small images; cap at 3000px on longest side for Tesseract
-        const scale = Math.min(3, Math.max(1, 2400 / Math.max(img.width, img.height)))
+        const scale = Math.min(4, Math.max(1.5, 2600 / Math.max(img.width, img.height)))
         const w = Math.round(img.width * scale)
         const h = Math.round(img.height * scale)
+
         const canvas = document.createElement('canvas')
-        canvas.width = w; canvas.height = h
+        canvas.width = w
+        canvas.height = h
+
         const ctx = canvas.getContext('2d')
-        // White background before drawing (handles transparent PNGs)
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
-        ctx.drawImage(img, 0, 0, w, h)
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0,0,w,h)
+        ctx.drawImage(img,0,0,w,h)
 
-        const imgData = ctx.getImageData(0, 0, w, h)
+        const imgData = ctx.getImageData(0,0,w,h)
         const d = imgData.data
-        const n = w * h
+        const n = w*h
 
-        // Step 1: Grayscale (luminance formula)
         const gray = new Uint8Array(n)
-        for (let i = 0; i < n; i++) {
-          gray[i] = Math.round(0.299*d[i*4] + 0.587*d[i*4+1] + 0.114*d[i*4+2])
+
+        for(let i=0;i<n;i++){
+          let r=d[i*4]
+          let g=d[i*4+1]
+          let b=d[i*4+2]
+
+          let v=Math.round(0.299*r + 0.587*g + 0.114*b)
+
+          if(mode==='contrast'){
+            v = Math.min(255, Math.max(0, (v - 128) * 1.45 + 128))
+          }
+
+          if(mode==='darkText'){
+            v = Math.min(255, Math.max(0, (v - 115) * 1.7 + 115))
+          }
+
+          gray[i]=v
         }
 
-        // Step 2: Otsu auto-threshold
         const hist = new Int32Array(256)
-        for (let i = 0; i < n; i++) hist[gray[i]]++
-        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i]
-        let sumB = 0, wB = 0, varMax = 0, threshold = 128
-        for (let t = 0; t < 256; t++) {
-          wB += hist[t]; if (!wB || wB === n) continue
-          const wF = n - wB
-          sumB += t * hist[t]
-          const mB = sumB / wB, mF = (sum - sumB) / wF
-          const v = wB * wF * (mB - mF) ** 2
-          if (v > varMax) { varMax = v; threshold = t }
+        for(let i=0;i<n;i++) hist[gray[i]]++
+
+        let sum=0
+        for(let i=0;i<256;i++) sum += i*hist[i]
+
+        let sumB=0
+        let wB=0
+        let varMax=0
+        let threshold=128
+
+        for(let t=0;t<256;t++){
+          wB += hist[t]
+          if(!wB || wB===n) continue
+
+          const wF=n-wB
+          sumB += t*hist[t]
+
+          const mB=sumB/wB
+          const mF=(sum-sumB)/wF
+          const variance=wB*wF*(mB-mF)**2
+
+          if(variance>varMax){
+            varMax=variance
+            threshold=t
+          }
         }
 
-        // Step 3: Binarize — pixels darker than threshold → black, rest → white
-        for (let i = 0; i < n; i++) {
-          const v = gray[i] <= threshold ? 0 : 255
-          d[i*4] = d[i*4+1] = d[i*4+2] = v; d[i*4+3] = 255
+        if(mode==='darkText') threshold += 12
+        if(mode==='contrast') threshold -= 5
+
+        for(let i=0;i<n;i++){
+          let v = gray[i] <= threshold ? 0 : 255
+
+          d[i*4]=v
+          d[i*4+1]=v
+          d[i*4+2]=v
+          d[i*4+3]=255
         }
-        ctx.putImageData(imgData, 0, 0)
-        canvas.toBlob(blob => resolve(blob || file), 'image/png')
-      } catch { resolve(file) }
+
+        ctx.putImageData(imgData,0,0)
+
+        canvas.toBlob(blob=>{
+          resolve(blob || file)
+        },'image/png')
+
+      }catch{
+        resolve(file)
+      }
     }
+
     img.src = URL.createObjectURL(file)
   })
 }
-
 // ── OCR Hook (real Tesseract.js + demo mode) ──────────────────────────────
 function useOCR() {
   const [stage,setStage]=useState('idle')   // idle|preprocessing|loading|recognizing|matching|done|error
@@ -816,32 +860,73 @@ function useOCR() {
   const [ocrError,setOcrError]=useState(null)
 
   async function recognize(imageFile) {
-    const url=URL.createObjectURL(imageFile)
-    setPreviewUrl(url); setStage('preprocessing'); setProgress(0); setOcrError(null); setResult(null)
-    try {
-      // Canvas preprocessing: grayscale + Otsu binarization + upscale
-      const processedBlob=await preprocessForOCR(imageFile)
-      const processedUrl=URL.createObjectURL(processedBlob)
+  const url=URL.createObjectURL(imageFile)
+  setPreviewUrl(url)
+  setStage('preprocessing')
+  setProgress(0)
+  setOcrError(null)
+  setResult(null)
 
-      setStage('loading')
-      const {createWorker}=await import('tesseract.js')
-      const worker=await createWorker(['eng','chi_tra'],1,{
-        logger: m=>{
-          if(m.status==='recognizing text'){
-            setStage('recognizing'); setProgress(Math.round(m.progress*100))
-          } else {
-            setOcrStatus(m.status||'')
-          }
+  try {
+    const {createWorker}=await import('tesseract.js')
+
+    setStage('loading')
+
+    const worker=await createWorker(['eng','chi_tra'],1,{
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          setStage('recognizing')
+          setProgress(Math.round(m.progress*100))
+        }else{
+          setOcrStatus(m.status||'')
         }
+      }
+    })
+
+      await worker.setParameters({
+        tessedit_pageseg_mode: '6',
+        preserve_interword_spaces: '1',
+        tessedit_char_whitelist:
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789藥錠膠囊膜衣注射液劑顆粒糖漿軟膏乳膏貼片口服懸浮+-/%()., '
       })
-      const {data:{text}}=await worker.recognize(processedUrl)
+
+      const modes=['standard','contrast','darkText']
+      const texts=[]
+
+      for(const mode of modes){
+        setStage('preprocessing')
+        const processedBlob=await preprocessForOCR(imageFile,mode)
+        const processedUrl=URL.createObjectURL(processedBlob)
+
+        setStage('recognizing')
+        const {data:{text}}=await worker.recognize(processedUrl)
+
+        if(text && text.trim()){
+          texts.push(text.trim())
+        }
+
+        URL.revokeObjectURL(processedUrl)
+      }
+
       await worker.terminate()
-      URL.revokeObjectURL(processedUrl)
+
       setStage('matching')
-      const matched=matchOcrText(text)
-      setResult({rawText:text.trim(),matched})
+
+      const mergedText=[...new Set(texts)]
+        .join('\n\n--- OCR PASS ---\n\n')
+
+      const cleanedText=cleanOCRText(mergedText)
+      const matched=matchOcrText(cleanedText)
+
+      setResult({
+        rawText:cleanedText,
+        matched
+      })
+
       setStage('done')
-    } catch(e) {
+
+    }catch(e){
+      console.error(e)
       setOcrError(e.message||'OCR failed. Try the demo mode.')
       setStage('error')
     }
@@ -867,6 +952,25 @@ function useOCR() {
   }
 
   return {stage,progress,ocrStatus,result,previewUrl,ocrError,recognize,runDemo,reset}
+}
+
+function cleanOCRText(text){
+  if(!text) return ''
+
+  return text
+    .replace(/[|]/g,'I')
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/\s+/g,' ')
+    .replace(/([A-Za-z])\s+([A-Za-z])/g,'$1 $2')
+    .replace(/(\d)\s+mg/gi,'$1mg')
+    .replace(/(\d)\s+mcg/gi,'$1mcg')
+    .replace(/(\d)\s+ml/gi,'$1ml')
+    .replace(/tabiet/gi,'tablet')
+    .replace(/capsuie/gi,'capsule')
+    .replace(/ibuproten/gi,'ibuprofen')
+    .replace(/warfarln/gi,'warfarin')
+    .trim()
 }
 
 // ── Scan Rx ────────────────────────────────────────────────────────────────
