@@ -394,8 +394,183 @@ function LoginModal({onClose}){
           fontSize:12,
           color:'#94A3B8'
         }}>
-          Not a member? <span style={{color:'#0E9F6E',fontWeight:700}}>Sign up now</span>
+          Not a member? 
+          <span 
+            onClick={()=>{
+              onClose()
+              window.dispatchEvent(new Event('open-signup'))
+            }}
+            style={{color:'#0E9F6E',fontWeight:700,cursor:'pointer'}}
+          >
+            Sign up now
+          </span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+function SignupModal({onClose}){
+  const [name,setName]=useState('')
+  const [email,setEmail]=useState('')
+  const [password,setPassword]=useState('')
+  const [confirm,setConfirm]=useState('')
+  const [done,setDone]=useState(false)
+
+  function submit(e){
+    e.preventDefault()
+
+    if(password!==confirm){
+      alert('Passwords do not match')
+      return
+    }
+
+    setDone(true)
+  }
+
+  return(
+    <div style={{
+      position:'fixed',
+      inset:0,
+      background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+      display:'flex',
+      alignItems:'center',
+      justifyContent:'center',
+      zIndex:1000,
+      padding:18
+    }}>
+      <div style={{
+        width:'100%',
+        maxWidth:340,
+        background:'#fff',
+        borderRadius:24,
+        padding:'34px 24px 28px',
+        boxShadow:'0 28px 70px rgba(15,23,42,.28)',
+        position:'relative'
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position:'absolute',
+            top:14,
+            right:16,
+            border:'none',
+            background:'transparent',
+            color:'#94A3B8',
+            fontSize:22,
+            cursor:'pointer'
+          }}
+        >
+          ×
+        </button>
+
+        <div style={{
+          textAlign:'center',
+          fontSize:28,
+          fontWeight:900,
+          color:'#475569',
+          marginBottom:24
+        }}>
+          Sign Up
+        </div>
+
+        {done ? (
+          <div style={{textAlign:'center',padding:'16px 0'}}>
+            <div style={{fontSize:44,marginBottom:12}}>✅</div>
+            <div style={{fontWeight:900,fontSize:18,color:'#0F172A'}}>
+              Account created
+            </div>
+            <div style={{fontSize:13,color:'#64748B',marginTop:8,lineHeight:1.5}}>
+              This is a frontend demo. Connect backend/auth later for real signup.
+            </div>
+
+            <button
+              onClick={onClose}
+              style={{
+                width:'100%',
+                marginTop:22,
+                padding:'13px',
+                borderRadius:999,
+                border:'none',
+                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                color:'#fff',
+                fontSize:15,
+                fontWeight:900,
+                cursor:'pointer'
+              }}
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>👤</span>
+              <input
+                value={name}
+                onChange={e=>setName(e.target.value)}
+                placeholder="Full name"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>✉️</span>
+              <input
+                type="email"
+                value={email}
+                onChange={e=>setEmail(e.target.value)}
+                placeholder="Email"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>🔒</span>
+              <input
+                type="password"
+                value={password}
+                onChange={e=>setPassword(e.target.value)}
+                placeholder="Password"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>🔐</span>
+              <input
+                type="password"
+                value={confirm}
+                onChange={e=>setConfirm(e.target.value)}
+                placeholder="Confirm password"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                width:'100%',
+                padding:'13px',
+                borderRadius:999,
+                border:'none',
+                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                color:'#fff',
+                fontSize:15,
+                fontWeight:900,
+                cursor:'pointer',
+                boxShadow:'0 12px 24px rgba(14,159,110,.22)'
+              }}
+            >
+              CREATE ACCOUNT
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )
@@ -563,7 +738,7 @@ function AlternativesPanel({ drug }) {
 }
 
 // ── Drug Search ────────────────────────────────────────────────────────────
-function DrugSearch(){
+function DrugSearch({addToMyDrugs}){
   const [query,setQuery]=useState('')
   const [results,setResults]=useState([])
   const [showDD,setShowDD]=useState(false)
@@ -698,12 +873,15 @@ function DrugSearch(){
               <div style={{fontSize:12,color:C.muted,marginTop:4}}>Brand → Ingredient root → WHO ATC → RxNorm CUI (via API)</div>
             </div>
           </LockedFeature>
-          <div style={{display:'flex',gap:10}}>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
             <button onClick={()=>{setSelected(null);setQuery('')}}
-              style={{flex:1,padding:'10px',borderRadius:8,border:`1px solid ${C.border}`,
+              style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.border}`,
                 background:'#f8fafc',fontSize:13,fontWeight:600,cursor:'pointer',color:C.text}}>← Scan Again</button>
+            <button onClick={()=>addToMyDrugs && addToMyDrugs(selected)}
+              style={{flex:'1 1 150px',padding:'10px',borderRadius:8,border:'none',
+                background:C.primary,fontSize:13,fontWeight:700,cursor:'pointer',color:'#fff'}}>+ Add to My Drugs</button>
             <button onClick={()=>setReportDrug(selected)}
-              style={{flex:1,padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
+              style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
                 background:'#fff5f5',fontSize:13,fontWeight:600,cursor:'pointer',color:C.danger}}>⚠ Report Error</button>
           </div>
         </Card>
@@ -747,7 +925,7 @@ function DrugSearch(){
           ):null}
         </>
       )}
-    </div>
+    </div>  
   )
 }
 
@@ -972,7 +1150,7 @@ function cleanOCRText(text){
 }
 
 // ── Scan Rx ────────────────────────────────────────────────────────────────
-function ScanRx({myDrugs,setMyDrugs}){
+function ScanRx({addToMyDrugs}){
   const ocr=useOCR()
   const [added,setAdded]=useState(new Set())
   const [reportDrug,setReportDrug]=useState(null)
@@ -1053,19 +1231,8 @@ function ScanRx({myDrugs,setMyDrugs}){
   function addMed(drug){
     setAdded(p=>new Set([...p,drug.id]))
 
-    if(setMyDrugs){
-      setMyDrugs(prev=>{
-        if(prev.some(m=>m.id===drug.id)) return prev
-
-        return [
-          ...prev,
-          {
-            ...drug,
-            times:['09:00'],
-            reminderOn:true
-          }
-        ]
-      })
+    if(addToMyDrugs){
+      addToMyDrugs(drug)
     }
 
     addHist({
@@ -1782,7 +1949,7 @@ function MyMeds({meds,setMeds}){
 }
 
 // ── Scan History ───────────────────────────────────────────────────────────
-function ScanHistory({myDrugs,setMyDrugs}){
+function ScanHistory({myDrugs,setMyDrugs,addToMyDrugs}){
   const {isStaff}=useAuth()
   const [tick,setTick]=useState(0)
   const h=HISTORY
@@ -1790,8 +1957,6 @@ function ScanHistory({myDrugs,setMyDrugs}){
   const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
   function addHistoryDrugToMyDrugs(record){
-    if(!setMyDrugs) return
-
     const drug = DRUGS.find(d =>
       d.nameEN===record.query ||
       d.ingredient===record.result ||
@@ -1800,13 +1965,20 @@ function ScanHistory({myDrugs,setMyDrugs}){
 
     if(!drug) return
 
-    setMyDrugs(prev=>{
-      if(prev.some(m=>m.id===drug.id)) return prev
-      return [
-        ...prev,
-        {...drug,times:['09:00'],reminderOn:true}
-      ]
-    })
+    if(addToMyDrugs){
+      addToMyDrugs(drug)
+      return
+    }
+
+    if(setMyDrugs){
+      setMyDrugs(prev=>{
+        if(prev.some(m=>m.id===drug.id)) return prev
+        return [
+          ...prev,
+          {...drug,times:['09:00'],reminderOn:true}
+        ]
+      })
+    }
   }
   function exportCSV(){
     const csv='Timestamp,Type,Query,Result,Confidence\n'+
@@ -1902,7 +2074,8 @@ function SettingsPage({
   setLanguage,
   T,
   myDrugs,
-  setMyDrugs
+  setMyDrugs,
+  addToMyDrugs
 }){
   const {isAdmin,isStaff}=useAuth()
   const isSignedIn = isAdmin || isStaff
@@ -1928,7 +2101,7 @@ function SettingsPage({
         theme={theme}
         onBack={()=>setSettingsSubPage('main')}
       >
-        <ScanHistory myDrugs={myDrugs} setMyDrugs={setMyDrugs}/>
+        <ScanHistory myDrugs={myDrugs} setMyDrugs={setMyDrugs} addToMyDrugs={addToMyDrugs}/>
       </SettingsSubLayout>
     )
   }
@@ -2556,10 +2729,12 @@ function SettingsSubLayout({title,theme,onBack,children}){
 function AppInner(){
   const [tab,setTab]=useState('scan')
   const [showLogin,setShowLogin]=useState(false)
+  const [showSignup,setShowSignup]=useState(false)
   const [showSignOutConfirm,setShowSignOutConfirm]=useState(false)
   const [nhiCount,setNhiCount]=useState(0)
   const [darkMode,setDarkMode]=useState(false)
   const [language,setLanguage]=useState('en')
+  const [toast,setToast]=useState('')
   const [myDrugs,setMyDrugs]=useState([
     {...DRUGS[6],times:['09:00'],reminderOn:true},
     {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
@@ -2577,6 +2752,13 @@ function AppInner(){
       if(n>0) setNhiCount(n)
     })
   },[])
+
+  useEffect(()=>{
+  const openSignup=()=>setShowSignup(true)
+  window.addEventListener('open-signup',openSignup)
+  return()=>window.removeEventListener('open-signup',openSignup)
+  },[])
+
 
   const tabs=[
     {id:'search', icon:'🔍', title:T.search},
@@ -2598,6 +2780,37 @@ function AppInner(){
     interact:T.interact,
     admin:T.admin,
   }[tab]
+  
+  function addToMyDrugs(drug){
+    let alreadyExists = false
+
+    setMyDrugs(prev=>{
+      if(prev.some(m=>m.id===drug.id)){
+        alreadyExists = true
+        return prev
+      }
+
+      return [
+        ...prev,
+        {
+          ...drug,
+          times:['09:00'],
+          reminderOn:true
+        }
+      ]
+    })
+
+    setToast(
+      alreadyExists
+        ? 'Drug already exists in My Drugs'
+        : 'Drug added to My Drugs'
+    )
+
+    setTimeout(()=>{
+      setToast('')
+    },2000)
+  }
+
 
   return(
     <div style={{
@@ -2726,6 +2939,9 @@ function AppInner(){
       {showLogin && (
         <LoginModal onClose={()=>setShowLogin(false)}/>
       )}
+      {showSignup && (
+        <SignupModal onClose={()=>setShowSignup(false)} />
+      )}
 
       {showSignOutConfirm && (
         <div style={{
@@ -2826,8 +3042,8 @@ function AppInner(){
           transition:'all .2s ease',
           color:theme.text
         }}>
-          {tab==='search' && <DrugSearch/>}
-          {tab==='scan' && (<ScanRx myDrugs={myDrugs}setMyDrugs={setMyDrugs}/>)}
+          {tab==='search' && <DrugSearch addToMyDrugs={addToMyDrugs}/>}
+          {tab==='scan' && (<ScanRx addToMyDrugs={addToMyDrugs}/>)}
           {tab==='interact' && <DrugInteractionCenter/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
@@ -2839,10 +3055,31 @@ function AppInner(){
               T={T}
               myDrugs={myDrugs}
               setMyDrugs={setMyDrugs}
+              addToMyDrugs={addToMyDrugs}
             />
           )}
         </section>
       </main>
+
+      {toast && (
+        <div style={{
+          position:'fixed',
+          left:'50%',
+          bottom:88,
+          transform:'translateX(-50%)',
+          zIndex:3000,
+          background:darkMode ? '#1E293B' : '#0F172A',
+          color:'#fff',
+          padding:'11px 18px',
+          borderRadius:999,
+          fontSize:13,
+          fontWeight:800,
+          boxShadow:'0 12px 30px rgba(0,0,0,.25)',
+          whiteSpace:'nowrap'
+        }}>
+          {toast}
+        </div>
+      )}
 
       <nav style={{
         position:'fixed',
