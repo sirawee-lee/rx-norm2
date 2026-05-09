@@ -972,7 +972,7 @@ function cleanOCRText(text){
 }
 
 // ── Scan Rx ────────────────────────────────────────────────────────────────
-function ScanRx(){
+function ScanRx({myDrugs,setMyDrugs}){
   const ocr=useOCR()
   const [added,setAdded]=useState(new Set())
   const [reportDrug,setReportDrug]=useState(null)
@@ -1052,6 +1052,22 @@ function ScanRx(){
 
   function addMed(drug){
     setAdded(p=>new Set([...p,drug.id]))
+
+    if(setMyDrugs){
+      setMyDrugs(prev=>{
+        if(prev.some(m=>m.id===drug.id)) return prev
+
+        return [
+          ...prev,
+          {
+            ...drug,
+            times:['09:00'],
+            reminderOn:true
+          }
+        ]
+      })
+    }
+
     addHist({
       type:'scan',
       query:drug.nameEN,
@@ -2811,7 +2827,7 @@ function AppInner(){
           color:theme.text
         }}>
           {tab==='search' && <DrugSearch/>}
-          {tab==='scan' && <ScanRx/>}
+          {tab==='scan' && (<ScanRx myDrugs={myDrugs}setMyDrugs={setMyDrugs}/>)}
           {tab==='interact' && <DrugInteractionCenter/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
