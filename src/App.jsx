@@ -886,8 +886,6 @@ function useOCR() {
       await worker.setParameters({
         tessedit_pageseg_mode: '6',
         preserve_interword_spaces: '1',
-        tessedit_char_whitelist:
-          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789藥錠膠囊膜衣注射液劑顆粒糖漿軟膏乳膏貼片口服懸浮+-/%()., '
       })
 
       const modes=['standard','contrast','darkText']
@@ -1003,7 +1001,7 @@ function ScanRx(){
 
       const stream=await navigator.mediaDevices.getUserMedia({
         video:{
-          facingMode:{ exact:'environment' }
+          facingMode:{ ideal:'environment' }
         },
         audio:false
       })
