@@ -3,12 +3,120 @@ import { AuthProvider, useAuth } from './auth.jsx'
 import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions,
          ATC_CATEGORIES, drugClassLabel, computeStats, findAlternatives, matchOcrText } from './data.js'
 
-const C = {
-  primary:'#1a73e8', primaryDk:'#1558b0', success:'#34a853',
-  warning:'#f59e0b', danger:'#ea4335', bg:'#f0f4f8',
-  card:'#ffffff', border:'#e2e8f0', text:'#1a202c', muted:'#718096',
-  adminBg:'#fef3f2', staffBg:'#fffbeb',
+
+const D = {
+  primary: '#34D399',
+  primaryDark: '#10B981',
+  secondary: '#22D3EE',
+  accent: '#FB923C',
+  bg: '#020617',
+  card: '#0F172A',
+  text: '#F8FAFC',
+  muted: '#94A3B8',
+  border: '#1E293B',
+  danger: '#F87171',
+  warning: '#FBBF24',
+  success: '#4ADE80',
+  staffBg: '#1E293B'
 }
+
+const C = {
+  primary: '#0E9F6E',
+  primaryDark: '#057A55',
+  secondary: '#06B6D4',
+  accent: '#F97316',
+  bg: '#F0FDF4',
+  card: '#FFFFFF',
+  text: '#0F172A',
+  muted: '#64748B',
+  border: '#D1FAE5',
+  danger: '#DC2626',
+  warning: '#F59E0B',
+  success: '#16A34A',
+  staffBg: '#FFFBEB'
+}
+
+const LANG = {
+  en:{
+    appName:'RxNorm Taiwan',
+    scan:'Scan Drugs',
+    search:'Search Drugs',
+    meds:'My Drugs',
+    settings:'Settings',
+    interact:'Drugs Interaction',
+    admin:'Admin Panel',
+    signIn:'Sign In',
+    signOut:'Sign Out',
+    signedInAs:'Signed in as',
+    notSignedIn:'Not signed in',
+    signOutTitle:'Sign out?',
+    signOutMessage:'Are you sure you want to sign out from this account?',
+    cancel:'Cancel',
+    userProfile:'User Profile',
+    userProfileDesc:'View and manage signed-in user information',
+    scanHistory:'Scan History',
+    scanHistoryDesc:'View previous prescription scan records',
+    mode:'Mode',
+    modeDesc:'Switch between light and dark appearance',
+    language:'Language',
+    languageDesc:'Change application language',
+    managePrefs:'Manage your app preferences.',
+    light:'Light',
+    dark:'Dark',
+    open:'Open'
+  },
+
+  zhTW:{
+    appName:'RxNorm Taiwan',
+    scan:'掃描處方',
+    search:'搜尋藥物',
+    meds:'我的藥物',
+    settings:'設定',
+    interact:'藥物交互作用',
+    admin:'管理面板',
+    signIn:'登入',
+    signOut:'登出',
+    signedInAs:'已登入為',
+    notSignedIn:'尚未登入',
+    signOutTitle:'要登出嗎？',
+    signOutMessage:'你確定要登出目前帳號嗎？',
+    cancel:'取消',
+    userProfile:'使用者資料',
+    userProfileDesc:'查看與管理已登入的使用者資訊',
+    scanHistory:'掃描紀錄',
+    scanHistoryDesc:'查看之前的處方掃描紀錄',
+    mode:'模式',
+    modeDesc:'切換淺色與深色外觀',
+    language:'語言',
+    languageDesc:'更改應用程式語言',
+    managePrefs:'管理你的應用程式偏好設定。',
+    light:'淺色',
+    dark:'深色',
+    open:'開啟'
+  }
+}
+
+function dosageFormEN(form){
+  const map = {
+    '膜衣錠': 'Film-coated tablet',
+    '錠劑': 'Tablet',
+    '膠囊': 'Capsule',
+    '軟膠囊': 'Soft capsule',
+    '口服液': 'Oral solution',
+    '懸浮液': 'Suspension',
+    '注射液': 'Injection',
+    '注射劑': 'Injection',
+    '乳膏': 'Cream',
+    '軟膏': 'Ointment',
+    '貼片': 'Patch',
+    '粉劑': 'Powder',
+    '顆粒劑': 'Granules',
+    '糖漿': 'Syrup'
+  }
+
+  return map[form] || form
+}
+
 const LOW_CONF = 0.75
 
 // module-level history (max 50) shared across tabs
@@ -20,8 +128,22 @@ function Badge({role}){
   const [col,bg]=m[role]||m.guest
   return <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:12,background:bg,color:col,border:`1px solid ${col}33`}}>{role.toUpperCase()}</span>
 }
-function Card({children,style}){
-  return <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:16,...style}}>{children}</div>
+function Card({children,style,onClick}){
+  return(
+    <div
+      onClick={onClick}
+      style={{
+        background:'var(--card)',
+        color:'var(--text)',
+        borderRadius:12,
+        border:'1px solid var(--border)',
+        padding:16,
+        ...style
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 function LockedFeature({minRole,children}){
   const {isAdmin,isStaff}=useAuth()
@@ -91,44 +213,398 @@ function ReportModal({drug,onClose}){
 
 function LoginModal({onClose}){
   const {login,error,setError}=useAuth()
-  const [u,setU]=useState(''); const [p,setP]=useState(''); const [loading,setLoading]=useState(false)
+  const [u,setU]=useState('')
+  const [p,setP]=useState('')
+  const [loading,setLoading]=useState(false)
+  const [remember,setRemember]=useState(true)
+
   function submit(e){
-    e.preventDefault(); setLoading(true)
-    setTimeout(()=>{ const ok=login(u,p); setLoading(false); if(ok) onClose() },400)
+    e.preventDefault()
+    setLoading(true)
+
+    setTimeout(()=>{
+      const ok=login(u,p)
+      setLoading(false)
+      if(ok) onClose()
+    },400)
   }
-  const inp={width:'100%',padding:'10px 12px',fontSize:14,borderRadius:8,border:`1px solid ${C.border}`,outline:'none',marginTop:4,fontFamily:'inherit'}
+
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}
-      onClick={e=>{if(e.target===e.currentTarget){setError('');onClose()}}}>
-      <div style={{background:'#fff',borderRadius:16,padding:28,width:360,boxShadow:'0 20px 60px rgba(0,0,0,.2)'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-          <div>
-            <div style={{fontWeight:700,fontSize:18}}>Sign In</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:2}}>RxNorm Taiwan — Staff & Admin Portal</div>
-          </div>
-          <button onClick={()=>{setError('');onClose()}} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:C.muted}}>×</button>
+    <div
+      style={{
+        position:'fixed',
+        inset:0,
+        background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        zIndex:1000,
+        padding:18
+      }}
+      onClick={e=>{
+        if(e.target===e.currentTarget){
+          setError('')
+          onClose()
+        }
+      }}
+    >
+      <div style={{
+        width:'100%',
+        maxWidth:330,
+        background:'#fff',
+        borderRadius:24,
+        padding:'34px 24px 28px',
+        boxShadow:'0 28px 70px rgba(15,23,42,.28)',
+        position:'relative'
+      }}>
+        <button
+          onClick={()=>{
+            setError('')
+            onClose()
+          }}
+          style={{
+            position:'absolute',
+            top:14,
+            right:16,
+            border:'none',
+            background:'transparent',
+            color:'#94A3B8',
+            fontSize:22,
+            cursor:'pointer'
+          }}
+        >
+          ×
+        </button>
+
+        <div style={{
+          textAlign:'center',
+          fontSize:28,
+          fontWeight:900,
+          color:'#475569',
+          marginBottom:28
+        }}>
+          Login
         </div>
+
         <form onSubmit={submit}>
-          <div style={{marginBottom:12}}><label style={{fontSize:13,fontWeight:500}}>Username</label>
-            <input style={inp} value={u} autoFocus onChange={e=>setU(e.target.value)} placeholder="admin / staff / doctor"/></div>
-          <div style={{marginBottom:4}}><label style={{fontSize:13,fontWeight:500}}>Password</label>
-            <input style={inp} type="password" value={p} onChange={e=>setP(e.target.value)} placeholder="••••••••"/></div>
-          {error&&<div style={{color:C.danger,fontSize:13,marginTop:8}}>{error}</div>}
-          <button type="submit" disabled={loading}
-            style={{marginTop:16,width:'100%',padding:'10px',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',border:'none',background:C.primary,color:'#fff'}}>
-            {loading?'Signing in...':'Sign In'}
+          <div style={loginInputWrapStyle}>
+            <span style={loginIconStyle}>👤</span>
+            <input
+              value={u}
+              autoFocus
+              onChange={e=>setU(e.target.value)}
+              placeholder="Username"
+              style={loginInputStyle}
+            />
+          </div>
+
+          <div style={loginInputWrapStyle}>
+            <span style={loginIconStyle}>🔒</span>
+            <input
+              type="password"
+              value={p}
+              onChange={e=>setP(e.target.value)}
+              placeholder="Password"
+              style={loginInputStyle}
+            />
+          </div>
+
+          <label style={{
+            display:'flex',
+            alignItems:'center',
+            gap:8,
+            fontSize:12,
+            color:'#94A3B8',
+            margin:'10px 2px 18px',
+            cursor:'pointer'
+          }}>
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={e=>setRemember(e.target.checked)}
+              style={{accentColor:'#0E9F6E'}}
+            />
+            Remember me
+          </label>
+
+          {error && (
+            <div style={{
+              color:'#DC2626',
+              fontSize:12,
+              marginBottom:12,
+              textAlign:'center',
+              fontWeight:700
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width:'100%',
+              padding:'13px',
+              borderRadius:999,
+              border:'none',
+              background:loading
+                ? '#94A3B8'
+                : 'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+              color:'#fff',
+              fontSize:15,
+              fontWeight:900,
+              letterSpacing:.4,
+              cursor:loading?'not-allowed':'pointer',
+              boxShadow:'0 12px 24px rgba(14,159,110,.22)'
+            }}
+          >
+            {loading?'SIGNING IN...':'LOG IN'}
           </button>
+
+          <div style={{
+            textAlign:'center',
+            fontSize:12,
+            color:'#94A3B8',
+            marginTop:14
+          }}>
+            Forget Password
+          </div>
         </form>
-        <div style={{marginTop:20,padding:12,background:'#f8fafc',borderRadius:8,fontSize:12,color:C.muted}}>
-          <div style={{fontWeight:600,marginBottom:6,color:C.text}}>Demo accounts:</div>
-          <div>👑 <b>admin</b> / admin123 — full admin access</div>
-          <div>🏥 <b>staff</b> / staff123 — hospital staff</div>
-          <div>🏥 <b>doctor</b> / doctor123 — hospital staff</div>
-          <div style={{marginTop:6}}>💡 Close this to continue as guest</div>
+
+        <div style={{
+          marginTop:34,
+          padding:12,
+          borderRadius:16,
+          background:'#F8FAFC',
+          fontSize:11,
+          color:'#64748B',
+          lineHeight:1.65
+        }}>
+          <div style={{fontWeight:800,color:'#334155',marginBottom:4}}>
+            Demo accounts
+          </div>
+          <div>admin / admin123</div>
+          <div>staff / staff123</div>
+          <div>doctor / doctor123</div>
+        </div>
+
+        <div style={{
+          marginTop:18,
+          textAlign:'center',
+          fontSize:12,
+          color:'#94A3B8'
+        }}>
+          Not a member? 
+          <span 
+            onClick={()=>{
+              onClose()
+              window.dispatchEvent(new Event('open-signup'))
+            }}
+            style={{color:'#0E9F6E',fontWeight:700,cursor:'pointer'}}
+          >
+            Sign up now
+          </span>
         </div>
       </div>
     </div>
   )
+}
+
+
+function SignupModal({onClose}){
+  const [name,setName]=useState('')
+  const [email,setEmail]=useState('')
+  const [password,setPassword]=useState('')
+  const [confirm,setConfirm]=useState('')
+  const [done,setDone]=useState(false)
+
+  function submit(e){
+    e.preventDefault()
+
+    if(password!==confirm){
+      alert('Passwords do not match')
+      return
+    }
+
+    setDone(true)
+  }
+
+  return(
+    <div style={{
+      position:'fixed',
+      inset:0,
+      background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+      display:'flex',
+      alignItems:'center',
+      justifyContent:'center',
+      zIndex:1000,
+      padding:18
+    }}>
+      <div style={{
+        width:'100%',
+        maxWidth:340,
+        background:'#fff',
+        borderRadius:24,
+        padding:'34px 24px 28px',
+        boxShadow:'0 28px 70px rgba(15,23,42,.28)',
+        position:'relative'
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            position:'absolute',
+            top:14,
+            right:16,
+            border:'none',
+            background:'transparent',
+            color:'#94A3B8',
+            fontSize:22,
+            cursor:'pointer'
+          }}
+        >
+          ×
+        </button>
+
+        <div style={{
+          textAlign:'center',
+          fontSize:28,
+          fontWeight:900,
+          color:'#475569',
+          marginBottom:24
+        }}>
+          Sign Up
+        </div>
+
+        {done ? (
+          <div style={{textAlign:'center',padding:'16px 0'}}>
+            <div style={{fontSize:44,marginBottom:12}}>✅</div>
+            <div style={{fontWeight:900,fontSize:18,color:'#0F172A'}}>
+              Account created
+            </div>
+            <div style={{fontSize:13,color:'#64748B',marginTop:8,lineHeight:1.5}}>
+              This is a frontend demo. Connect backend/auth later for real signup.
+            </div>
+
+            <button
+              onClick={onClose}
+              style={{
+                width:'100%',
+                marginTop:22,
+                padding:'13px',
+                borderRadius:999,
+                border:'none',
+                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                color:'#fff',
+                fontSize:15,
+                fontWeight:900,
+                cursor:'pointer'
+              }}
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>👤</span>
+              <input
+                value={name}
+                onChange={e=>setName(e.target.value)}
+                placeholder="Full name"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>✉️</span>
+              <input
+                type="email"
+                value={email}
+                onChange={e=>setEmail(e.target.value)}
+                placeholder="Email"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>🔒</span>
+              <input
+                type="password"
+                value={password}
+                onChange={e=>setPassword(e.target.value)}
+                placeholder="Password"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <div style={loginInputWrapStyle}>
+              <span style={loginIconStyle}>🔐</span>
+              <input
+                type="password"
+                value={confirm}
+                onChange={e=>setConfirm(e.target.value)}
+                placeholder="Confirm password"
+                required
+                style={loginInputStyle}
+              />
+            </div>
+
+            <button
+              type="submit"
+              style={{
+                width:'100%',
+                padding:'13px',
+                borderRadius:999,
+                border:'none',
+                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                color:'#fff',
+                fontSize:15,
+                fontWeight:900,
+                cursor:'pointer',
+                boxShadow:'0 12px 24px rgba(14,159,110,.22)'
+              }}
+            >
+              CREATE ACCOUNT
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const loginInputWrapStyle = {
+  width:'100%',
+  height:44,
+  borderRadius:999,
+  background:'#F1F5F9',
+  display:'flex',
+  alignItems:'center',
+  gap:10,
+  padding:'0 15px',
+  marginBottom:14,
+  border:'1px solid #E2E8F0'
+}
+
+const loginIconStyle = {
+  fontSize:15,
+  color:'#94A3B8',
+  width:18,
+  textAlign:'center',
+  opacity:.8
+}
+
+const loginInputStyle = {
+  flex:1,
+  border:'none',
+  outline:'none',
+  background:'transparent',
+  fontSize:14,
+  color:'#0F172A',
+  fontFamily:'inherit'
 }
 
 function NavBar({showLogin,nhiCount}){
@@ -262,7 +738,7 @@ function AlternativesPanel({ drug }) {
 }
 
 // ── Drug Search ────────────────────────────────────────────────────────────
-function DrugSearch(){
+function DrugSearch({addToMyDrugs}){
   const [query,setQuery]=useState('')
   const [results,setResults]=useState([])
   const [showDD,setShowDD]=useState(false)
@@ -295,7 +771,7 @@ function DrugSearch(){
       <div ref={wrapRef} style={{position:'relative',marginBottom:16}}>
         <input value={query} onChange={e=>onType(e.target.value)}
           onFocus={()=>query.length>=1&&results.length>0&&setShowDD(true)}
-          placeholder="Search by drug name (EN/中文), ingredient, NHI code, or ATC code..."
+          placeholder="Search..."
           style={{width:'100%',padding:'12px 16px',fontSize:15,borderRadius:10,fontFamily:'inherit',
             border:`1px solid ${showDD?C.primary:C.border}`,outline:'none',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}}/>
 
@@ -359,14 +835,14 @@ function DrugSearch(){
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
             {[
-              ['NHI Code (健保碼)', selected.id],
+              ['NHI Code', selected.id],
               ['ATC Code', selected.atc],
-              ['English Name', selected.nameEN],
-              ['Chinese Name (中文名)', selected.nameZH],
-              ['Dosage Form (劑型)', selected.form],
-              ['Strength (劑量)', selected.strength],
+              ['Brand Name', selected.nameEN],
+              ['Chinese Name', selected.nameZH],
+              ['Dosage Form', dosageFormEN(selected.form)],
+              ['Dosage', selected.strength],
               isStaff ? ['NHI Price (NT$)', `NT$ ${selected.price}`] : null,
-              ['Manufacturer (製造商)', selected.manufacturer],
+              ['Manufacturer', selected.manufacturer],
             ].filter(Boolean).map(([l,v])=>(
               <div key={l} style={{background:'#f8fafc',borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>{l}</div>
@@ -397,12 +873,15 @@ function DrugSearch(){
               <div style={{fontSize:12,color:C.muted,marginTop:4}}>Brand → Ingredient root → WHO ATC → RxNorm CUI (via API)</div>
             </div>
           </LockedFeature>
-          <div style={{display:'flex',gap:10}}>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
             <button onClick={()=>{setSelected(null);setQuery('')}}
-              style={{flex:1,padding:'10px',borderRadius:8,border:`1px solid ${C.border}`,
+              style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.border}`,
                 background:'#f8fafc',fontSize:13,fontWeight:600,cursor:'pointer',color:C.text}}>← Scan Again</button>
+            <button onClick={()=>addToMyDrugs && addToMyDrugs(selected)}
+              style={{flex:'1 1 150px',padding:'10px',borderRadius:8,border:'none',
+                background:C.primary,fontSize:13,fontWeight:700,cursor:'pointer',color:'#fff'}}>+ Add to My Drugs</button>
             <button onClick={()=>setReportDrug(selected)}
-              style={{flex:1,padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
+              style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
                 background:'#fff5f5',fontSize:13,fontWeight:600,cursor:'pointer',color:C.danger}}>⚠ Report Error</button>
           </div>
         </Card>
@@ -446,65 +925,109 @@ function DrugSearch(){
           ):null}
         </>
       )}
-    </div>
+    </div>  
   )
 }
 
 // ── Canvas Image Preprocessing (Grayscale + Otsu Binarization + Upscale) ──
-async function preprocessForOCR(file) {
+async function preprocessForOCR(file, mode='standard') {
   return new Promise(resolve => {
     const img = new Image()
     img.onerror = () => resolve(file)
+
     img.onload = () => {
       try {
-        // Upscale small images; cap at 3000px on longest side for Tesseract
-        const scale = Math.min(3, Math.max(1, 2400 / Math.max(img.width, img.height)))
+        const scale = Math.min(4, Math.max(1.5, 2600 / Math.max(img.width, img.height)))
         const w = Math.round(img.width * scale)
         const h = Math.round(img.height * scale)
+
         const canvas = document.createElement('canvas')
-        canvas.width = w; canvas.height = h
+        canvas.width = w
+        canvas.height = h
+
         const ctx = canvas.getContext('2d')
-        // White background before drawing (handles transparent PNGs)
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
-        ctx.drawImage(img, 0, 0, w, h)
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0,0,w,h)
+        ctx.drawImage(img,0,0,w,h)
 
-        const imgData = ctx.getImageData(0, 0, w, h)
+        const imgData = ctx.getImageData(0,0,w,h)
         const d = imgData.data
-        const n = w * h
+        const n = w*h
 
-        // Step 1: Grayscale (luminance formula)
         const gray = new Uint8Array(n)
-        for (let i = 0; i < n; i++) {
-          gray[i] = Math.round(0.299*d[i*4] + 0.587*d[i*4+1] + 0.114*d[i*4+2])
+
+        for(let i=0;i<n;i++){
+          let r=d[i*4]
+          let g=d[i*4+1]
+          let b=d[i*4+2]
+
+          let v=Math.round(0.299*r + 0.587*g + 0.114*b)
+
+          if(mode==='contrast'){
+            v = Math.min(255, Math.max(0, (v - 128) * 1.45 + 128))
+          }
+
+          if(mode==='darkText'){
+            v = Math.min(255, Math.max(0, (v - 115) * 1.7 + 115))
+          }
+
+          gray[i]=v
         }
 
-        // Step 2: Otsu auto-threshold
         const hist = new Int32Array(256)
-        for (let i = 0; i < n; i++) hist[gray[i]]++
-        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i]
-        let sumB = 0, wB = 0, varMax = 0, threshold = 128
-        for (let t = 0; t < 256; t++) {
-          wB += hist[t]; if (!wB || wB === n) continue
-          const wF = n - wB
-          sumB += t * hist[t]
-          const mB = sumB / wB, mF = (sum - sumB) / wF
-          const v = wB * wF * (mB - mF) ** 2
-          if (v > varMax) { varMax = v; threshold = t }
+        for(let i=0;i<n;i++) hist[gray[i]]++
+
+        let sum=0
+        for(let i=0;i<256;i++) sum += i*hist[i]
+
+        let sumB=0
+        let wB=0
+        let varMax=0
+        let threshold=128
+
+        for(let t=0;t<256;t++){
+          wB += hist[t]
+          if(!wB || wB===n) continue
+
+          const wF=n-wB
+          sumB += t*hist[t]
+
+          const mB=sumB/wB
+          const mF=(sum-sumB)/wF
+          const variance=wB*wF*(mB-mF)**2
+
+          if(variance>varMax){
+            varMax=variance
+            threshold=t
+          }
         }
 
-        // Step 3: Binarize — pixels darker than threshold → black, rest → white
-        for (let i = 0; i < n; i++) {
-          const v = gray[i] <= threshold ? 0 : 255
-          d[i*4] = d[i*4+1] = d[i*4+2] = v; d[i*4+3] = 255
+        if(mode==='darkText') threshold += 12
+        if(mode==='contrast') threshold -= 5
+
+        for(let i=0;i<n;i++){
+          let v = gray[i] <= threshold ? 0 : 255
+
+          d[i*4]=v
+          d[i*4+1]=v
+          d[i*4+2]=v
+          d[i*4+3]=255
         }
-        ctx.putImageData(imgData, 0, 0)
-        canvas.toBlob(blob => resolve(blob || file), 'image/png')
-      } catch { resolve(file) }
+
+        ctx.putImageData(imgData,0,0)
+
+        canvas.toBlob(blob=>{
+          resolve(blob || file)
+        },'image/png')
+
+      }catch{
+        resolve(file)
+      }
     }
+
     img.src = URL.createObjectURL(file)
   })
 }
-
 // ── OCR Hook (real Tesseract.js + demo mode) ──────────────────────────────
 function useOCR() {
   const [stage,setStage]=useState('idle')   // idle|preprocessing|loading|recognizing|matching|done|error
@@ -515,32 +1038,71 @@ function useOCR() {
   const [ocrError,setOcrError]=useState(null)
 
   async function recognize(imageFile) {
-    const url=URL.createObjectURL(imageFile)
-    setPreviewUrl(url); setStage('preprocessing'); setProgress(0); setOcrError(null); setResult(null)
-    try {
-      // Canvas preprocessing: grayscale + Otsu binarization + upscale
-      const processedBlob=await preprocessForOCR(imageFile)
-      const processedUrl=URL.createObjectURL(processedBlob)
+  const url=URL.createObjectURL(imageFile)
+  setPreviewUrl(url)
+  setStage('preprocessing')
+  setProgress(0)
+  setOcrError(null)
+  setResult(null)
 
-      setStage('loading')
-      const {createWorker}=await import('tesseract.js')
-      const worker=await createWorker(['eng','chi_tra'],1,{
-        logger: m=>{
-          if(m.status==='recognizing text'){
-            setStage('recognizing'); setProgress(Math.round(m.progress*100))
-          } else {
-            setOcrStatus(m.status||'')
-          }
+  try {
+    const {createWorker}=await import('tesseract.js')
+
+    setStage('loading')
+
+    const worker=await createWorker(['eng','chi_tra'],1,{
+      logger:m=>{
+        if(m.status==='recognizing text'){
+          setStage('recognizing')
+          setProgress(Math.round(m.progress*100))
+        }else{
+          setOcrStatus(m.status||'')
         }
+      }
+    })
+
+      await worker.setParameters({
+        tessedit_pageseg_mode: '6',
+        preserve_interword_spaces: '1',
       })
-      const {data:{text}}=await worker.recognize(processedUrl)
+
+      const modes=['standard','contrast','darkText']
+      const texts=[]
+
+      for(const mode of modes){
+        setStage('preprocessing')
+        const processedBlob=await preprocessForOCR(imageFile,mode)
+        const processedUrl=URL.createObjectURL(processedBlob)
+
+        setStage('recognizing')
+        const {data:{text}}=await worker.recognize(processedUrl)
+
+        if(text && text.trim()){
+          texts.push(text.trim())
+        }
+
+        URL.revokeObjectURL(processedUrl)
+      }
+
       await worker.terminate()
-      URL.revokeObjectURL(processedUrl)
+
       setStage('matching')
-      const matched=matchOcrText(text)
-      setResult({rawText:text.trim(),matched})
+
+      const mergedText=[...new Set(texts)]
+        .join('\n\n--- OCR PASS ---\n\n')
+
+      const cleanedText=cleanOCRText(mergedText)
+      const matched=matchOcrText(cleanedText)
+
+      setResult({
+        rawText:cleanedText,
+        matched
+      })
+
       setStage('done')
-    } catch(e) {
+
+    }catch(e){
+      console.error(e)
       setOcrError(e.message||'OCR failed. Try the demo mode.')
       setStage('error')
     }
@@ -568,12 +1130,37 @@ function useOCR() {
   return {stage,progress,ocrStatus,result,previewUrl,ocrError,recognize,runDemo,reset}
 }
 
+function cleanOCRText(text){
+  if(!text) return ''
+
+  return text
+    .replace(/[|]/g,'I')
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/\s+/g,' ')
+    .replace(/([A-Za-z])\s+([A-Za-z])/g,'$1 $2')
+    .replace(/(\d)\s+mg/gi,'$1mg')
+    .replace(/(\d)\s+mcg/gi,'$1mcg')
+    .replace(/(\d)\s+ml/gi,'$1ml')
+    .replace(/tabiet/gi,'tablet')
+    .replace(/capsuie/gi,'capsule')
+    .replace(/ibuproten/gi,'ibuprofen')
+    .replace(/warfarln/gi,'warfarin')
+    .trim()
+}
+
 // ── Scan Rx ────────────────────────────────────────────────────────────────
-function ScanRx(){
+function ScanRx({addToMyDrugs}){
   const ocr=useOCR()
   const [added,setAdded]=useState(new Set())
   const [reportDrug,setReportDrug]=useState(null)
+  const [cameraOpen,setCameraOpen]=useState(false)
+
   const fileRef=useRef()
+  const videoRef=useRef(null)
+  const canvasRef=useRef(null)
+  const streamRef=useRef(null)
+
   const {isStaff}=useAuth()
   const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
@@ -582,36 +1169,276 @@ function ScanRx(){
     if(file) ocr.recognize(file)
     e.target.value=''
   }
+
+  async function openCamera(){
+    try{
+      if(!navigator.mediaDevices?.getUserMedia){
+        alert('Camera is not supported in this browser.')
+        return
+      }
+
+      const stream=await navigator.mediaDevices.getUserMedia({
+        video:{
+          facingMode:{ ideal:'environment' }
+        },
+        audio:false
+      })
+
+      streamRef.current=stream
+      setCameraOpen(true)
+
+      setTimeout(()=>{
+        if(videoRef.current){
+          videoRef.current.srcObject=stream
+          videoRef.current.play()
+        }
+      },100)
+    }catch(err){
+      console.error(err)
+      alert('Camera cannot be opened. Please allow camera permission in browser.')
+    }
+  }
+
+  function closeCamera(){
+    if(streamRef.current){
+      streamRef.current.getTracks().forEach(track=>track.stop())
+      streamRef.current=null
+    }
+    setCameraOpen(false)
+  }
+
+  function takePhoto(){
+    const video=videoRef.current
+    const canvas=canvasRef.current
+
+    if(!video || !canvas) return
+
+    canvas.width=video.videoWidth
+    canvas.height=video.videoHeight
+
+    const ctx=canvas.getContext('2d')
+    ctx.drawImage(video,0,0,canvas.width,canvas.height)
+
+    canvas.toBlob(blob=>{
+      if(!blob) return
+
+      const file=new File([blob],'camera-photo.jpg',{type:'image/jpeg'})
+      closeCamera()
+      ocr.recognize(file)
+    },'image/jpeg',0.95)
+  }
+
   function addMed(drug){
     setAdded(p=>new Set([...p,drug.id]))
-    addHist({type:'scan',query:drug.nameEN,result:drug.ingredient,score:0.95})
+
+    if(addToMyDrugs){
+      addToMyDrugs(drug)
+    }
+
+    addHist({
+      type:'scan',
+      query:drug.nameEN,
+      result:drug.ingredient,
+      score:0.95
+    })
   }
 
   if(ocr.stage==='idle') return(
     <Card>
       {reportDrug&&<ReportModal drug={reportDrug} onClose={()=>setReportDrug(null)}/>}
-      <div style={{textAlign:'center',padding:'28px 0'}}>
-        <div style={{fontSize:52,marginBottom:12}}>📷</div>
-        <div style={{fontWeight:700,fontSize:18,marginBottom:8}}>Scan Prescription</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:24,lineHeight:1.6}}>
-          Upload a photo of your prescription or medicine packaging.<br/>
-          Real OCR will extract drug names — Traditional Chinese &amp; English.
+
+      <div style={{textAlign:'center',padding:'30px 0'}}>
+        <div style={{
+          width:74,
+          height:74,
+          borderRadius:'50%',
+          background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+          color:'#fff',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          fontSize:42,
+          fontWeight:900,
+          margin:'0 auto 16px',
+          boxShadow:'0 14px 28px rgba(14,159,110,.24)'
+        }}>
+          +
         </div>
-        <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <button onClick={()=>fileRef.current.click()}
-            style={{padding:'12px 26px',background:C.primary,color:'#fff',border:'none',
-              borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>
-            📁 Upload Image
-          </button>
-          <button onClick={ocr.runDemo}
-            style={{padding:'12px 26px',background:'#f1f5f9',color:C.text,
-              border:`1px solid ${C.border}`,borderRadius:10,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-            🧪 Demo Prescription
-          </button>
+
+        <div style={{
+          fontWeight:800,
+          fontSize:21,
+          marginBottom:8,
+          color:C.text
+        }}>
+          Upload Image
         </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile}/>
-        <div style={{marginTop:14,fontSize:11,color:C.muted}}>Supports JPG · PNG · WEBP · HEIC</div>
+
+        <div style={{
+          fontSize:13,
+          color:C.muted,
+          marginBottom:24,
+          lineHeight:1.6
+        }}>
+          Upload image or take a photo using your laptop camera.<br/>
+          OCR will extract drug names from the image.
+        </div>
+
+        <button
+          onClick={()=>fileRef.current.click()}
+          style={{
+            width:'100%',
+            maxWidth:280,
+            padding:'14px 22px',
+            background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+            color:'#fff',
+            border:'none',
+            borderRadius:16,
+            fontSize:15,
+            fontWeight:800,
+            cursor:'pointer',
+            boxShadow:'0 12px 24px rgba(14,159,110,.20)',
+            marginBottom:12
+          }}
+        >
+          + Upload Image
+        </button>
+
+        <button
+          onClick={openCamera}
+          style={{
+            width:'100%',
+            maxWidth:280,
+            padding:'13px 22px',
+            background:'#ffffff',
+            color:C.primary,
+            border:`1px solid ${C.primary}`,
+            borderRadius:16,
+            fontSize:14,
+            fontWeight:800,
+            cursor:'pointer',
+            marginBottom:12
+          }}
+        >
+          📷 Take Photo
+        </button>
+
+        <button
+          onClick={ocr.runDemo}
+          style={{
+            width:'100%',
+            maxWidth:280,
+            padding:'13px 22px',
+            background:'#f8fafc',
+            color:C.text,
+            border:`1px solid ${C.border}`,
+            borderRadius:16,
+            fontSize:14,
+            fontWeight:700,
+            cursor:'pointer'
+          }}
+        >
+          🧪 Demo Prescription
+        </button>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{display:'none'}}
+          onChange={handleFile}
+        />
+
+        <div style={{marginTop:16,fontSize:11,color:C.muted}}>
+          Supports JPG · PNG · WEBP · HEIC
+        </div>
       </div>
+
+      {cameraOpen && (
+        <div style={{
+          position:'fixed',
+          inset:0,
+          background:'rgba(15,23,42,.72)',
+          zIndex:999,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          padding:16
+        }}>
+          <div style={{
+            width:'100%',
+            maxWidth:520,
+            background:'#fff',
+            borderRadius:24,
+            padding:16,
+            boxShadow:'0 24px 60px rgba(0,0,0,.28)'
+          }}>
+            <div style={{
+              display:'flex',
+              justifyContent:'space-between',
+              alignItems:'center',
+              marginBottom:12
+            }}>
+              <div style={{
+                fontSize:17,
+                fontWeight:800,
+                color:C.text
+              }}>
+                Take Prescription Photo
+              </div>
+
+              <button
+                onClick={closeCamera}
+                style={{
+                  border:'none',
+                  background:'#f1f5f9',
+                  borderRadius:12,
+                  padding:'8px 12px',
+                  cursor:'pointer',
+                  fontWeight:700
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                width:'100%',
+                borderRadius:18,
+                background:'#000',
+                maxHeight:420,
+                objectFit:'cover'
+              }}
+            />
+
+            <canvas ref={canvasRef} style={{display:'none'}} />
+
+            <button
+              onClick={takePhoto}
+              style={{
+                width:'100%',
+                marginTop:14,
+                padding:'14px 16px',
+                border:'none',
+                borderRadius:16,
+                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                color:'#fff',
+                fontSize:15,
+                fontWeight:900,
+                cursor:'pointer'
+              }}
+            >
+              Capture & Run OCR
+            </button>
+          </div>
+        </div>
+      )}
     </Card>
   )
 
@@ -620,51 +1447,85 @@ function ScanRx(){
       <div style={{fontSize:48,marginBottom:14}}>
         {ocr.stage==='matching'?'🔍':ocr.stage==='recognizing'?'🔤':ocr.stage==='preprocessing'?'🖼️':'⚙️'}
       </div>
+
       <div style={{fontWeight:700,fontSize:16,marginBottom:12}}>
-        {ocr.stage==='matching'   ?'Matching against NHI drug database...':
+        {ocr.stage==='matching'?'Matching against NHI drug database...':
          ocr.stage==='recognizing'?'Extracting text from image...':
-         ocr.stage==='preprocessing'?'Enhancing image quality (binarization + upscale)...':
+         ocr.stage==='preprocessing'?'Enhancing image quality...':
          'Initializing OCR engine...'}
       </div>
-      {/* Pipeline step indicator */}
+
       <div style={{display:'flex',justifyContent:'center',gap:6,marginBottom:16,flexWrap:'wrap'}}>
         {[
           ['preprocessing','🖼️ Pre-process'],
           ['loading','⚙️ Init OCR'],
           ['recognizing','🔤 Read text'],
           ['matching','🔍 Match drugs'],
-        ].map(([s,label],i)=>{
+        ].map(([s,label])=>{
           const stages=['preprocessing','loading','recognizing','matching']
           const idx=stages.indexOf(ocr.stage)
           const thisIdx=stages.indexOf(s)
-          const done=thisIdx<idx, active=thisIdx===idx
+          const done=thisIdx<idx
+          const active=thisIdx===idx
+
           return(
-            <span key={s} style={{fontSize:11,fontWeight:600,padding:'3px 9px',borderRadius:20,
+            <span key={s} style={{
+              fontSize:11,
+              fontWeight:600,
+              padding:'3px 9px',
+              borderRadius:20,
               background:done?'#dcfce7':active?C.primary+'18':'#f1f5f9',
               color:done?'#166534':active?C.primary:C.muted,
-              border:`1px solid ${done?'#86efac':active?C.primary+'44':C.border}`}}>
+              border:`1px solid ${done?'#86efac':active?C.primary+'44':C.border}`
+            }}>
               {done?'✓ ':''}{label}
             </span>
           )
         })}
       </div>
+
       {ocr.stage==='loading'&&(
         <div style={{fontSize:13,color:C.muted,marginBottom:8}}>
           {ocr.ocrStatus||'Loading Tesseract engine and language data...'}
         </div>
       )}
+
       {ocr.stage==='recognizing'&&(
         <>
-          <div style={{background:'#e2e8f0',borderRadius:20,height:10,overflow:'hidden',marginBottom:8}}>
-            <div style={{height:'100%',borderRadius:20,background:C.primary,
-              width:`${ocr.progress}%`,transition:'width 0.1s ease'}}/>
+          <div style={{
+            background:'#e2e8f0',
+            borderRadius:20,
+            height:10,
+            overflow:'hidden',
+            marginBottom:8
+          }}>
+            <div style={{
+              height:'100%',
+              borderRadius:20,
+              background:C.primary,
+              width:`${ocr.progress}%`,
+              transition:'width 0.1s ease'
+            }}/>
           </div>
-          <div style={{fontSize:13,color:C.muted,marginBottom:8}}>{ocr.progress}%</div>
+
+          <div style={{fontSize:13,color:C.muted,marginBottom:8}}>
+            {ocr.progress}%
+          </div>
         </>
       )}
+
       {ocr.previewUrl&&(
-        <img src={ocr.previewUrl} alt="preview"
-          style={{maxHeight:100,maxWidth:'100%',borderRadius:8,opacity:.65,marginTop:8}}/>
+        <img
+          src={ocr.previewUrl}
+          alt="preview"
+          style={{
+            maxHeight:100,
+            maxWidth:'100%',
+            borderRadius:8,
+            opacity:.65,
+            marginTop:8
+          }}
+        />
       )}
     </Card>
   )
@@ -673,23 +1534,63 @@ function ScanRx(){
     <Card>
       <div style={{textAlign:'center',padding:'28px 0'}}>
         <div style={{fontSize:48,marginBottom:12}}>❌</div>
-        <div style={{fontWeight:700,fontSize:16,color:C.danger,marginBottom:8}}>OCR Failed</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:20,maxWidth:320,margin:'0 auto 20px'}}>
+
+        <div style={{
+          fontWeight:700,
+          fontSize:16,
+          color:C.danger,
+          marginBottom:8
+        }}>
+          OCR Failed
+        </div>
+
+        <div style={{
+          fontSize:13,
+          color:C.muted,
+          marginBottom:20,
+          maxWidth:320,
+          margin:'0 auto 20px'
+        }}>
           {ocr.ocrError}
         </div>
+
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-          <button onClick={ocr.reset}
-            style={{padding:'10px 20px',background:'#f1f5f9',color:C.text,border:`1px solid ${C.border}`,
-              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>Try Again</button>
-          <button onClick={ocr.runDemo}
-            style={{padding:'10px 20px',background:C.primary,color:'#fff',border:'none',
-              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>🧪 Use Demo</button>
+          <button
+            onClick={ocr.reset}
+            style={{
+              padding:'10px 20px',
+              background:'#f1f5f9',
+              color:C.text,
+              border:`1px solid ${C.border}`,
+              borderRadius:8,
+              fontSize:13,
+              fontWeight:600,
+              cursor:'pointer'
+            }}
+          >
+            Try Again
+          </button>
+
+          <button
+            onClick={ocr.runDemo}
+            style={{
+              padding:'10px 20px',
+              background:C.primary,
+              color:'#fff',
+              border:'none',
+              borderRadius:8,
+              fontSize:13,
+              fontWeight:600,
+              cursor:'pointer'
+            }}
+          >
+            🧪 Use Demo
+          </button>
         </div>
       </div>
     </Card>
   )
 
-  // stage === 'done'
   const {rawText,matched}=ocr.result
   const highConf=matched.filter(m=>m.confidence>=LOW_CONF)
   const lowConf=matched.filter(m=>m.confidence<LOW_CONF)
@@ -698,33 +1599,89 @@ function ScanRx(){
     return(
       <Card>
         <LowConfWarning score={confidence} name={drug.nameEN}/>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+
+        <div style={{
+          display:'flex',
+          justifyContent:'space-between',
+          alignItems:'flex-start'
+        }}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
-              <span style={{fontWeight:700,fontSize:16}}>{drug.ingredient}</span>
+            <div style={{
+              display:'flex',
+              alignItems:'center',
+              gap:8,
+              marginBottom:4,
+              flexWrap:'wrap'
+            }}>
+              <span style={{fontWeight:700,fontSize:16}}>
+                {drug.ingredient}
+              </span>
+
               <DrugClassBadge raw={drug.drugClass}/>
-              <span style={{fontSize:11,padding:'2px 8px',borderRadius:12,
-                background:cc(confidence)+'22',color:cc(confidence),fontWeight:600}}>
+
+              <span style={{
+                fontSize:11,
+                padding:'2px 8px',
+                borderRadius:12,
+                background:cc(confidence)+'22',
+                color:cc(confidence),
+                fontWeight:600
+              }}>
                 {Math.round(confidence*100)}% confidence
               </span>
             </div>
-            <div style={{fontSize:13,color:C.muted}}>{drug.nameEN} · {drug.nameZH}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:4}}>
-              {drug.id} · ATC: {drug.atc} · {drug.form} {drug.strength}
+
+            <div style={{fontSize:13,color:C.muted}}>
+              {drug.nameEN} · {drug.nameZH}
+            </div>
+
+            <div style={{
+              fontSize:12,
+              color:C.muted,
+              marginTop:4
+            }}>
+              {drug.id} · ATC: {drug.atc} · {dosageFormEN(drug.form)} {drug.strength}
               {isStaff&&` · NT$ ${drug.price}`}
             </div>
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6,marginLeft:12,flexShrink:0}}>
-            <button onClick={()=>addMed(drug)} disabled={added.has(drug.id)}
-              style={{padding:'7px 12px',borderRadius:8,fontSize:13,fontWeight:600,border:'none',
+
+          <div style={{
+            display:'flex',
+            flexDirection:'column',
+            gap:6,
+            marginLeft:12,
+            flexShrink:0
+          }}>
+            <button
+              onClick={()=>addMed(drug)}
+              disabled={added.has(drug.id)}
+              style={{
+                padding:'7px 12px',
+                borderRadius:8,
+                fontSize:13,
+                fontWeight:600,
+                border:'none',
                 cursor:added.has(drug.id)?'default':'pointer',
                 background:added.has(drug.id)?'#e8f5e9':C.primary,
-                color:added.has(drug.id)?C.success:'#fff'}}>
+                color:added.has(drug.id)?C.success:'#fff'
+              }}
+            >
               {added.has(drug.id)?'✓ Added':'+ Add'}
             </button>
-            <button onClick={()=>setReportDrug(drug)}
-              style={{padding:'7px 12px',borderRadius:8,fontSize:12,fontWeight:500,
-                border:`1px solid ${C.danger}44`,background:'#fff5f5',color:C.danger,cursor:'pointer'}}>
+
+            <button
+              onClick={()=>setReportDrug(drug)}
+              style={{
+                padding:'7px 12px',
+                borderRadius:8,
+                fontSize:12,
+                fontWeight:500,
+                border:`1px solid ${C.danger}44`,
+                background:'#fff5f5',
+                color:C.danger,
+                cursor:'pointer'
+              }}
+            >
               ⚠ Error
             </button>
           </div>
@@ -737,26 +1694,56 @@ function ScanRx(){
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
       {reportDrug&&<ReportModal drug={reportDrug} onClose={()=>setReportDrug(null)}/>}
 
-      {/* OCR result summary bar */}
-      <Card style={{background: matched.length>0?'#f0fdf4':'#fffbeb',
-        border:`1px solid ${matched.length>0?C.success:'#fbbf24'}`}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+      <Card style={{
+        background:matched.length>0?'#f0fdf4':'#fffbeb',
+        border:`1px solid ${matched.length>0?C.success:'#fbbf24'}`
+      }}>
+        <div style={{
+          display:'flex',
+          justifyContent:'space-between',
+          alignItems:'flex-start',
+          gap:12
+        }}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:600,fontSize:14,
-              color:matched.length>0?'#166534':'#92400e',marginBottom:6}}>
+            <div style={{
+              fontWeight:600,
+              fontSize:14,
+              color:matched.length>0?'#166534':'#92400e',
+              marginBottom:6
+            }}>
               {matched.length>0
                 ? `✅ OCR Complete — ${matched.length} drug${matched.length!==1?'s':''} identified (${highConf.length} high confidence)`
                 : '⚠️ OCR Complete — no drugs identified in database'}
             </div>
-            <div style={{fontSize:11,color:C.muted,fontFamily:'monospace',whiteSpace:'pre-wrap',
-              maxHeight:68,overflowY:'auto',background:'rgba(255,255,255,.7)',
-              padding:'6px 8px',borderRadius:6,lineHeight:1.5}}>
+
+            <div style={{
+              fontSize:11,
+              color:C.muted,
+              fontFamily:'monospace',
+              whiteSpace:'pre-wrap',
+              maxHeight:68,
+              overflowY:'auto',
+              background:'rgba(255,255,255,.7)',
+              padding:'6px 8px',
+              borderRadius:6,
+              lineHeight:1.5
+            }}>
               {rawText||'(no text extracted — image may be too dark or blurry)'}
             </div>
           </div>
+
           {ocr.previewUrl&&(
-            <img src={ocr.previewUrl} alt="scan"
-              style={{maxHeight:76,maxWidth:86,borderRadius:6,objectFit:'cover',flexShrink:0}}/>
+            <img
+              src={ocr.previewUrl}
+              alt="scan"
+              style={{
+                maxHeight:76,
+                maxWidth:86,
+                borderRadius:6,
+                objectFit:'cover',
+                flexShrink:0
+              }}
+            />
           )}
         </div>
       </Card>
@@ -764,13 +1751,30 @@ function ScanRx(){
       {matched.length===0&&(
         <Card style={{textAlign:'center',padding:32,color:C.muted}}>
           <div style={{fontSize:36,marginBottom:8}}>🤔</div>
-          <div style={{fontWeight:600,marginBottom:6}}>No drugs matched in NHI database</div>
-          <div style={{fontSize:13,marginBottom:16}}>
-            OCR couldn't find recognizable drug names. Try a clearer photo,<br/>or search manually in the 🔍 Drug Search tab.
+
+          <div style={{fontWeight:600,marginBottom:6}}>
+            No drugs matched in NHI database
           </div>
-          <button onClick={ocr.runDemo}
-            style={{padding:'8px 18px',background:C.primary,color:'#fff',border:'none',
-              borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer'}}>
+
+          <div style={{fontSize:13,marginBottom:16}}>
+            OCR couldn't find recognizable drug names. Try a clearer photo,
+            <br/>
+            or search manually in the 🔍 Drug Search tab.
+          </div>
+
+          <button
+            onClick={ocr.runDemo}
+            style={{
+              padding:'8px 18px',
+              background:C.primary,
+              color:'#fff',
+              border:'none',
+              borderRadius:8,
+              fontSize:13,
+              fontWeight:600,
+              cursor:'pointer'
+            }}
+          >
             🧪 Try Demo Prescription
           </button>
         </Card>
@@ -781,33 +1785,59 @@ function ScanRx(){
           <div style={{fontWeight:700,fontSize:15,color:'#166534'}}>
             ✅ High Confidence ({highConf.length})
           </div>
+
           {highConf.map(m=><DrugResultCard key={m.drug.id} {...m}/>)}
         </>
       )}
 
       {lowConf.length>0&&(
         <>
-          <div style={{fontWeight:700,fontSize:14,color:C.warning,marginTop:4}}>
+          <div style={{
+            fontWeight:700,
+            fontSize:14,
+            color:C.warning,
+            marginTop:4
+          }}>
             ⚠️ Possible Matches — verify before adding ({lowConf.length})
           </div>
-          <div style={{fontSize:12,color:C.muted,marginTop:-6}}>
+
+          <div style={{
+            fontSize:12,
+            color:C.muted,
+            marginTop:-6
+          }}>
             These were partially matched from OCR text. Check name and dosage carefully.
           </div>
+
           {lowConf.map(m=><DrugResultCard key={m.drug.id} {...m}/>)}
         </>
       )}
 
       {added.size>0&&(
-        <Card style={{background:'#f0fdf4',border:`1px solid ${C.success}`,textAlign:'center'}}>
+        <Card style={{
+          background:'#f0fdf4',
+          border:`1px solid ${C.success}`,
+          textAlign:'center'
+        }}>
           <div style={{fontWeight:600,color:'#166534'}}>
             {added.size} drug{added.size>1?'s':''} added to My Medications ✓
           </div>
         </Card>
       )}
 
-      <button onClick={()=>{ocr.reset();setAdded(new Set())}}
-        style={{padding:'12px',borderRadius:10,border:`1px solid ${C.border}`,
-          background:'#f8fafc',fontSize:14,fontWeight:600,cursor:'pointer',color:C.text}}>
+      <button
+        onClick={()=>{ocr.reset();setAdded(new Set())}}
+        style={{
+          padding:'12px',
+          borderRadius:10,
+          border:`1px solid ${C.border}`,
+          background:'#f8fafc',
+          fontSize:14,
+          fontWeight:600,
+          cursor:'pointer',
+          color:C.text
+        }}
+      >
         Scan Another Prescription
       </button>
     </div>
@@ -855,12 +1885,7 @@ function InteractionBanner({meds}){
 }
 
 // ── My Medications ─────────────────────────────────────────────────────────
-function MyMeds(){
-  const [meds,setMeds]=useState([
-    {...DRUGS[6],times:['09:00'],reminderOn:true},
-    {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
-    {...DRUGS[7],times:['08:00'],reminderOn:true},
-  ])
+function MyMeds({meds,setMeds}){
   const {isStaff}=useAuth()
   const toggle=id=>setMeds(p=>p.map(m=>m.id===id?{...m,reminderOn:!m.reminderOn}:m))
   const remove=id=>setMeds(p=>p.filter(m=>m.id!==id))
@@ -880,7 +1905,7 @@ function MyMeds(){
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:16}}>{med.ingredient}</div>
               <div style={{fontSize:13,color:C.muted,marginTop:2}}>{med.nameEN}</div>
-              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{med.form} · {med.strength}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{dosageFormEN(med.form)} · {med.strength}</div>
               <div style={{marginTop:12}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>⏰ Reminder times:</div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
@@ -924,13 +1949,37 @@ function MyMeds(){
 }
 
 // ── Scan History ───────────────────────────────────────────────────────────
-function ScanHistory(){
+function ScanHistory({myDrugs,setMyDrugs,addToMyDrugs}){
   const {isStaff}=useAuth()
   const [tick,setTick]=useState(0)
   const h=HISTORY
   const fmt=iso=>{ try{return new Date(iso).toLocaleString()}catch{return iso} }
   const cc=s=>s>=LOW_CONF?C.success:s>=0.55?C.warning:C.danger
 
+  function addHistoryDrugToMyDrugs(record){
+    const drug = DRUGS.find(d =>
+      d.nameEN===record.query ||
+      d.ingredient===record.result ||
+      d.id===record.query
+    )
+
+    if(!drug) return
+
+    if(addToMyDrugs){
+      addToMyDrugs(drug)
+      return
+    }
+
+    if(setMyDrugs){
+      setMyDrugs(prev=>{
+        if(prev.some(m=>m.id===drug.id)) return prev
+        return [
+          ...prev,
+          {...drug,times:['09:00'],reminderOn:true}
+        ]
+      })
+    }
+  }
   function exportCSV(){
     const csv='Timestamp,Type,Query,Result,Confidence\n'+
       h.map(r=>`"${fmt(r.ts)}","${r.type}","${r.query}","${r.result}","${Math.round((r.score||0)*100)}%"`).join('\n')
@@ -986,6 +2035,22 @@ function ScanHistory(){
                   </div>
                   <div style={{fontSize:12,color:C.muted}}>Matched: <b>{r.result}</b></div>
                   <div style={{fontSize:11,color:C.muted,marginTop:4}}>{fmt(r.ts)}</div>
+                  <button
+                    onClick={()=>addHistoryDrugToMyDrugs(r)}
+                    style={{
+                      marginTop:8,
+                      padding:'7px 12px',
+                      borderRadius:10,
+                      border:'none',
+                      background:C.primary,
+                      color:'#fff',
+                      fontSize:12,
+                      fontWeight:700,
+                      cursor:'pointer'
+                    }}
+                  >
+                    + Add to My Drugs
+                  </button>
                 </div>
                 {r.score!=null&&(
                   <span style={{fontSize:12,fontWeight:700,padding:'3px 10px',borderRadius:12,
@@ -1002,6 +2067,183 @@ function ScanHistory(){
   )
 }
 
+function SettingsPage({
+  darkMode,
+  setDarkMode,
+  language,
+  setLanguage,
+  T,
+  myDrugs,
+  setMyDrugs,
+  addToMyDrugs
+}){
+  const {isAdmin,isStaff}=useAuth()
+  const isSignedIn = isAdmin || isStaff
+  const theme = darkMode ? D : C
+  const [settingsSubPage,setSettingsSubPage]=useState('main')
+
+  if(settingsSubPage==='profile'){
+    return(
+      <SettingsSubLayout
+        title="User Profile"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <UserProfilePage darkMode={darkMode}/>
+      </SettingsSubLayout>
+    )
+  }
+
+  if(settingsSubPage==='history'){
+    return(
+      <SettingsSubLayout
+        title="Scan History"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <ScanHistory myDrugs={myDrugs} setMyDrugs={setMyDrugs} addToMyDrugs={addToMyDrugs}/>
+      </SettingsSubLayout>
+    )
+  }
+
+  if(settingsSubPage==='myDrugs'){
+    return(
+      <SettingsSubLayout
+        title="My Drugs"
+        theme={theme}
+        onBack={()=>setSettingsSubPage('main')}
+      >
+        <MyMeds meds={myDrugs} setMeds={setMyDrugs}/>
+      </SettingsSubLayout>
+    )
+  }
+
+  return(
+    <div style={{
+      color:theme.text,
+      background:theme.card,
+      minHeight:'calc(100vh - 230px)'
+    }}>
+      <div style={{fontSize:22,fontWeight:800,marginBottom:8,color:theme.text}}>
+        {T.settings}
+      </div>
+
+      <div style={{color:theme.muted,fontSize:14,marginBottom:24}}>
+        Manage profile, scan history, drugs, and app preferences.
+      </div>
+
+      <div style={{display:'grid',gap:14}}>
+        {isSignedIn && (
+          <>
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="User Profile"
+              desc="View and manage signed-in user information"
+              onClick={()=>setSettingsSubPage('profile')}
+            />
+
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="Scan History"
+              desc="View prescription scan records and add important drugs"
+              onClick={()=>setSettingsSubPage('history')}
+            />
+
+            <SettingsMenuItem
+              darkMode={darkMode}
+              title="My Drugs"
+              desc="Manage saved medications and reminders"
+              onClick={()=>setSettingsSubPage('myDrugs')}
+            />
+          </>
+        )}
+
+        <div style={getSettingsCardStyle(darkMode)}>
+          <div>
+            <div style={getSettingsTitleStyle(darkMode)}>{T.mode}</div>
+            <div style={getSettingsDescStyle(darkMode)}>{T.modeDesc}</div>
+          </div>
+
+          <button
+            onClick={()=>setDarkMode(!darkMode)}
+            style={getSettingsButtonStyle()}
+          >
+            {darkMode ? T.dark : T.light}
+          </button>
+        </div>
+
+        <div style={getSettingsCardStyle(darkMode)}>
+          <div>
+            <div style={getSettingsTitleStyle(darkMode)}>{T.language}</div>
+            <div style={getSettingsDescStyle(darkMode)}>{T.languageDesc}</div>
+          </div>
+
+          <select
+            value={language}
+            onChange={(e)=>setLanguage(e.target.value)}
+            style={{
+              border:'none',
+              background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+              color:'#fff',
+              borderRadius:12,
+              padding:'8px 12px',
+              fontWeight:700,
+              cursor:'pointer',
+              outline:'none'
+            }}
+          >
+            <option value="en">English</option>
+            <option value="zhTW">繁體中文</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function getSettingsCardStyle(darkMode){
+  return{
+    background:darkMode ? D.card : C.card,
+    border:`1px solid ${darkMode ? D.border : C.border}`,
+    borderRadius:18,
+    padding:'16px',
+    display:'flex',
+    alignItems:'center',
+    justifyContent:'space-between',
+    gap:12,
+    boxShadow:darkMode
+      ? '0 8px 22px rgba(0,0,0,.24)'
+      : '0 6px 18px rgba(15,23,42,.05)'
+  }
+}
+
+function getSettingsTitleStyle(darkMode){
+  return{
+    fontSize:15,
+    fontWeight:700,
+    color:darkMode ? D.text : C.text
+  }
+}
+
+function getSettingsDescStyle(darkMode){
+  return{
+    fontSize:12,
+    color:darkMode ? D.muted : C.muted,
+    marginTop:4
+  }
+}
+
+function getSettingsButtonStyle(){
+  return{
+    border:'none',
+    background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+    color:'#fff',
+    borderRadius:12,
+    padding:'8px 14px',
+    fontWeight:700,
+    cursor:'pointer'
+  }
+}
 // ── AI Drug Interaction Center (Staff/Admin only) ──────────────────────────
 const SEVERITY_CFG = {
   HIGH:     { color:'#dc2626', bg:'#fef2f2', border:'#fca5a5', icon:'🔴', label:'HIGH' },
@@ -1326,56 +2568,603 @@ function AdminDashboard(){
   )
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+function UserProfilePage({darkMode}){
+  const {user,isAdmin,isStaff}=useAuth()
+  const theme = darkMode ? D : C
+
+  if(!user){
+    return(
+      <Card style={{textAlign:'center',padding:32}}>
+        <div style={{fontSize:42,marginBottom:12}}>👤</div>
+        <div style={{fontWeight:800,fontSize:18,marginBottom:6}}>
+          Guest User
+        </div>
+        <div style={{fontSize:13,color:'var(--muted)'}}>
+          Please sign in to view your profile.
+        </div>
+      </Card>
+    )
+  }
+
+  return(
+    <div style={{display:'grid',gap:14,color:theme.text}}>
+      <div>
+        <div style={{fontSize:22,fontWeight:900}}>User Profile</div>
+        <div style={{fontSize:13,color:theme.muted,marginTop:4}}>
+          Account information and access role.
+        </div>
+      </div>
+
+      <Card style={{
+        display:'flex',
+        alignItems:'center',
+        gap:14
+      }}>
+        <div style={{
+          width:58,
+          height:58,
+          borderRadius:'50%',
+          background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+          color:'#fff',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          fontSize:26,
+          fontWeight:900
+        }}>
+          {user.name?.[0]?.toUpperCase() || 'U'}
+        </div>
+
+        <div>
+          <div style={{fontSize:18,fontWeight:900}}>
+            {user.name}
+          </div>
+          <div style={{fontSize:13,color:theme.muted}}>
+            {isAdmin?'Administrator':isStaff?'Hospital Staff':'Guest'}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <ProfileRow label="Username" value={user.username || '-'} />
+        <ProfileRow label="Role" value={user.role || '-'} />
+        <ProfileRow label="Access Level" value={isAdmin?'Full Access':isStaff?'Staff Access':'Guest Access'} />
+        <ProfileRow label="Account Status" value="Active" />
+      </Card>
+
+      <Card>
+        <div style={{fontSize:15,fontWeight:800,marginBottom:10}}>
+          Permissions
+        </div>
+
+        <ProfilePermission active={true} text="Search drug database" />
+        <ProfilePermission active={true} text="Scan prescription with OCR" />
+        <ProfilePermission active={isStaff || isAdmin} text="View NHI price and staff data" />
+        <ProfilePermission active={isStaff || isAdmin} text="Check drug interactions" />
+        <ProfilePermission active={isAdmin} text="Access admin dashboard" />
+      </Card>
+    </div>
+  )
+}
+
+function ProfileRow({label,value}){
+  return(
+    <div style={{
+      display:'flex',
+      justifyContent:'space-between',
+      gap:12,
+      padding:'11px 0',
+      borderBottom:'1px solid var(--border)'
+    }}>
+      <div style={{fontSize:13,color:'var(--muted)'}}>{label}</div>
+      <div style={{fontSize:13,fontWeight:800,color:'var(--text)',textAlign:'right'}}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function ProfilePermission({active,text}){
+  return(
+    <div style={{
+      display:'flex',
+      alignItems:'center',
+      gap:10,
+      padding:'8px 0',
+      fontSize:13,
+      color:'var(--text)'
+    }}>
+      <span>{active?'✅':'🔒'}</span>
+      <span style={{opacity:active?1:.55}}>{text}</span>
+    </div>
+  )
+}
+
+function SettingsMenuItem({darkMode,title,desc,onClick}){
+  return(
+    <div style={getSettingsCardStyle(darkMode)}>
+      <div>
+        <div style={getSettingsTitleStyle(darkMode)}>{title}</div>
+        <div style={getSettingsDescStyle(darkMode)}>{desc}</div>
+      </div>
+
+      <button onClick={onClick} style={getSettingsButtonStyle()}>
+        Open
+      </button>
+    </div>
+  )
+}
+
+function SettingsSubLayout({title,theme,onBack,children}){
+  return(
+    <div style={{color:theme.text}}>
+      <button
+        onClick={onBack}
+        style={{
+          border:'none',
+          background:'transparent',
+          color:theme.primary,
+          fontWeight:800,
+          marginBottom:14,
+          cursor:'pointer'
+        }}
+      >
+        ← Back
+      </button>
+
+      <div style={{
+        fontSize:22,
+        fontWeight:900,
+        marginBottom:16,
+        color:theme.text
+      }}>
+        {title}
+      </div>
+
+      {children}
+    </div>
+  )
+}
+
 function AppInner(){
-  const [tab,setTab]=useState('search')
+  const [tab,setTab]=useState('scan')
   const [showLogin,setShowLogin]=useState(false)
+  const [showSignup,setShowSignup]=useState(false)
+  const [showSignOutConfirm,setShowSignOutConfirm]=useState(false)
   const [nhiCount,setNhiCount]=useState(0)
-  const {isAdmin,isStaff}=useAuth()
+  const [darkMode,setDarkMode]=useState(false)
+  const [language,setLanguage]=useState('en')
+  const [toast,setToast]=useState('')
+  const [myDrugs,setMyDrugs]=useState([
+    {...DRUGS[6],times:['09:00'],reminderOn:true},
+    {...DRUGS[9],times:['08:00','12:00','18:00'],reminderOn:true},
+    {...DRUGS[7],times:['08:00'],reminderOn:true},
+  ])
+
+  const {isAdmin,isStaff,logout}=useAuth()
+
+  const theme = darkMode ? D : C
+  const isSignedIn = isAdmin || isStaff
+  const T = LANG[language]
 
   useEffect(()=>{
-    loadNHIDrugs().then(n=>{ if(n>0) setNhiCount(n) })
+    loadNHIDrugs().then(n=>{
+      if(n>0) setNhiCount(n)
+    })
   },[])
 
+  useEffect(()=>{
+  const openSignup=()=>setShowSignup(true)
+  window.addEventListener('open-signup',openSignup)
+  return()=>window.removeEventListener('open-signup',openSignup)
+  },[])
+
+
   const tabs=[
-    {id:'search',    label:'🔍 Drug Search'},
-    {id:'scan',      label:'📷 Scan Rx'},
-    {id:'meds',      label:'💊 My Meds'},
-    {id:'history',   label:'🕐 History'},
-    {id:'interact',  label:'⚠️ Interactions', minRole:'staff'},
-    {id:'admin',     label:'⚙️ Admin',        minRole:'admin'},
+    {id:'search', icon:'🔍', title:T.search},
+    {id:'scan', icon:'📷', title:T.scan},
+    {id:'interact', icon:'⚠️', title:T.interact, minRole:'staff'},
+    {id:'admin', icon:'🛠️', title:T.admin, minRole:'admin'},
+    {id:'settings', icon:'⚙️', title:T.settings},
   ].filter(t=>{
     if(t.minRole==='admin') return isAdmin
     if(t.minRole==='staff') return isStaff
     return true
   })
 
+  const pageTitle={
+    scan:T.scan,
+    search:T.search,
+    meds:T.meds,
+    settings:T.settings,
+    interact:T.interact,
+    admin:T.admin,
+  }[tab]
+  
+  function addToMyDrugs(drug){
+    let alreadyExists = false
+
+    setMyDrugs(prev=>{
+      if(prev.some(m=>m.id===drug.id)){
+        alreadyExists = true
+        return prev
+      }
+
+      return [
+        ...prev,
+        {
+          ...drug,
+          times:['09:00'],
+          reminderOn:true
+        }
+      ]
+    })
+
+    setToast(
+      alreadyExists
+        ? 'Drug already exists in My Drugs'
+        : 'Drug added to My Drugs'
+    )
+
+    setTimeout(()=>{
+      setToast('')
+    },2000)
+  }
+
+
   return(
-    <div style={{minHeight:'100vh',background:C.bg}}>
-      <NavBar showLogin={()=>setShowLogin(true)} nhiCount={nhiCount}/>
-      {showLogin&&<LoginModal onClose={()=>setShowLogin(false)}/>}
-      <div style={{background:'#fff',borderBottom:`1px solid ${C.border}`,padding:'0 16px',display:'flex',gap:0,overflowX:'auto'}}>
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
-            style={{padding:'14px 14px',border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',
-              fontWeight:tab===t.id?700:400,whiteSpace:'nowrap',color:tab===t.id?C.primary:C.muted,
-              borderBottom:tab===t.id?`3px solid ${C.primary}`:'3px solid transparent'}}>
-            {t.label}
+    <div style={{
+      '--card':theme.card,
+      '--text':theme.text,
+      '--muted':theme.muted,
+      '--border':theme.border,
+
+      minHeight:'100vh',
+      background:darkMode
+        ? 'linear-gradient(180deg,#020617 0%,#0F172A 55%,#111827 100%)'
+        : 'linear-gradient(180deg,#ECFDF5 0%,#F8FAFC 45%,#FFFFFF 100%)',
+      paddingBottom:96,
+      color:theme.text,
+      transition:'all .2s ease'
+    }}>
+
+      <header style={{
+        position:'sticky',
+        top:0,
+        zIndex:100,
+        background:darkMode
+          ? 'rgba(15,23,42,.88)'
+          : 'rgba(255,255,255,.86)',
+        backdropFilter:'blur(16px)',
+        borderBottom:`1px solid ${theme.border}`,
+        boxShadow:darkMode
+          ? '0 4px 20px rgba(0,0,0,.22)'
+          : '0 4px 20px rgba(15,23,42,.06)'
+      }}>
+        <div style={{
+          maxWidth:520,
+          margin:'0 auto',
+          padding:'12px 16px',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'space-between',
+          gap:12
+        }}>
+          <div style={{
+            display:'flex',
+            alignItems:'center',
+            gap:12,
+            minWidth:0
+          }}>
+            <div style={{
+              width:42,
+              height:42,
+              borderRadius:15,
+              background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+              display:'flex',
+              alignItems:'center',
+              justifyContent:'center',
+              color:'#fff',
+              fontSize:20,
+              boxShadow:'0 8px 20px rgba(6,182,212,.22)',
+              flexShrink:0
+            }}>
+              💊
+            </div>
+
+            <div style={{minWidth:0}}>
+              <div style={{
+                fontSize:16,
+                fontWeight:900,
+                color:theme.text,
+                whiteSpace:'nowrap'
+              }}>
+                {T.appName}
+              </div>
+
+              <div style={{
+                fontSize:11,
+                color:theme.primary,
+                fontWeight:700,
+                marginTop:3
+              }}>
+                {pageTitle}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={()=>{
+              if(isSignedIn){
+                setShowSignOutConfirm(true)
+              }else{
+                setShowLogin(true)
+              }
+            }}
+            style={{
+              border:'none',
+              background:'transparent',
+              padding:0,
+              display:'flex',
+              alignItems:'center',
+              gap:10,
+              cursor:'pointer',
+              textAlign:'right'
+            }}
+          >
+            <div style={{lineHeight:1.15}}>
+              <div style={{
+                fontSize:14,
+                fontWeight:800,
+                color:theme.text
+              }}>
+                {isSignedIn ? T.signOut : T.signIn}
+              </div>
+
+              <div style={{
+                fontSize:11,
+                color:theme.muted,
+                opacity:.68,
+                marginTop:3
+              }}>
+                {isSignedIn
+                  ? `${T.signedInAs} ${isAdmin?'Admin':'Staff'}`
+                  : T.notSignedIn}
+              </div>
+            </div>
           </button>
-        ))}
-      </div>
-      <div style={{maxWidth:720,margin:'0 auto',padding:16}}>
-        {tab==='search'   &&<DrugSearch/>}
-        {tab==='scan'     &&<ScanRx/>}
-        {tab==='meds'     &&<MyMeds/>}
-        {tab==='history'  &&<ScanHistory/>}
-        {tab==='interact' &&<DrugInteractionCenter/>}
-        {tab==='admin'    &&<AdminDashboard/>}
-      </div>
-      <div style={{textAlign:'center',padding:'24px 16px',color:C.muted,fontSize:12}}>
-        RxNorm Taiwan · Group 6 · NTHU EECS Rural Smart Healthcare · 2026<br/>
-        Data source: NHI Pharmaceutical Benefit and Reimbursement Schedule · {nhiCount>0?`${nhiCount.toLocaleString()} active drugs`:'Loading NHI data...'}
-      </div>
+        </div>
+      </header>
+
+      {showLogin && (
+        <LoginModal onClose={()=>setShowLogin(false)}/>
+      )}
+      {showSignup && (
+        <SignupModal onClose={()=>setShowSignup(false)} />
+      )}
+
+      {showSignOutConfirm && (
+        <div style={{
+          position:'fixed',
+          inset:0,
+          background:'rgba(0,0,0,.45)',
+          zIndex:1000,
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          padding:16
+        }}>
+          <div style={{
+            width:'100%',
+            maxWidth:340,
+            background:theme.card,
+            border:`1px solid ${theme.border}`,
+            borderRadius:22,
+            padding:22,
+            boxShadow:'0 24px 60px rgba(0,0,0,.28)',
+            color:theme.text
+          }}>
+            <div style={{
+              fontSize:18,
+              fontWeight:900,
+              marginBottom:8
+            }}>
+              {T.signOutTitle}
+            </div>
+
+            <div style={{
+              fontSize:13,
+              color:theme.muted,
+              marginBottom:20,
+              lineHeight:1.5
+            }}>
+              {T.signOutMessage}
+            </div>
+
+            <div style={{
+              display:'flex',
+              gap:10
+            }}>
+              <button
+                onClick={()=>setShowSignOutConfirm(false)}
+                style={{
+                  flex:1,
+                  padding:'11px 14px',
+                  borderRadius:14,
+                  border:`1px solid ${theme.border}`,
+                  background:darkMode?'#1E293B':'#F8FAFC',
+                  color:theme.text,
+                  fontWeight:800,
+                  cursor:'pointer'
+                }}
+              >
+                {T.cancel}
+              </button>
+
+              <button
+                onClick={()=>{
+                  logout()
+                  setShowSignOutConfirm(false)
+                  setTab('scan')
+                }}
+                style={{
+                  flex:1,
+                  padding:'11px 14px',
+                  borderRadius:14,
+                  border:'none',
+                  background:'#DC2626',
+                  color:'#fff',
+                  fontWeight:800,
+                  cursor:'pointer'
+                }}
+              >
+                {T.signOut}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main style={{
+        maxWidth:520,
+        margin:'0 auto',
+        padding:'18px 14px 24px'
+      }}>
+        <section style={{
+          background:theme.card,
+          border:`1px solid ${theme.border}`,
+          borderRadius:24,
+          padding:16,
+          boxShadow:darkMode
+            ? '0 12px 32px rgba(0,0,0,.22)'
+            : '0 12px 32px rgba(15,23,42,.07)',
+          minHeight:'calc(100vh - 190px)',
+          transition:'all .2s ease',
+          color:theme.text
+        }}>
+          {tab==='search' && <DrugSearch addToMyDrugs={addToMyDrugs}/>}
+          {tab==='scan' && (<ScanRx addToMyDrugs={addToMyDrugs}/>)}
+          {tab==='interact' && <DrugInteractionCenter/>}
+          {tab==='admin' && <AdminDashboard/>}
+          {tab==='settings' && (
+            <SettingsPage
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+              language={language}
+              setLanguage={setLanguage}
+              T={T}
+              myDrugs={myDrugs}
+              setMyDrugs={setMyDrugs}
+              addToMyDrugs={addToMyDrugs}
+            />
+          )}
+        </section>
+      </main>
+
+      {toast && (
+        <div style={{
+          position:'fixed',
+          left:'50%',
+          bottom:88,
+          transform:'translateX(-50%)',
+          zIndex:3000,
+          background:darkMode ? '#1E293B' : '#0F172A',
+          color:'#fff',
+          padding:'11px 18px',
+          borderRadius:999,
+          fontSize:13,
+          fontWeight:800,
+          boxShadow:'0 12px 30px rgba(0,0,0,.25)',
+          whiteSpace:'nowrap'
+        }}>
+          {toast}
+        </div>
+      )}
+
+      <nav style={{
+        position:'fixed',
+        left:0,
+        right:0,
+        bottom:0,
+        zIndex:250,
+        background:darkMode
+          ? 'rgba(15,23,42,.92)'
+          : 'rgba(255,255,255,.92)',
+        backdropFilter:'blur(16px)',
+        borderTop:`1px solid ${theme.border}`,
+        boxShadow:darkMode
+          ? '0 -10px 28px rgba(0,0,0,.28)'
+          : '0 -10px 28px rgba(15,23,42,.10)',
+        padding:'9px 12px max(9px, env(safe-area-inset-bottom))'
+      }}>
+        <div style={{
+          maxWidth:520,
+          margin:'0 auto',
+          display:'grid',
+          gridTemplateColumns:`repeat(${tabs.length},1fr)`,
+          gap:8
+        }}>
+          {tabs.map(t=>{
+            const active=tab===t.id
+
+            return(
+              <button
+                key={t.id}
+                onClick={()=>setTab(t.id)}
+                aria-label={t.title}
+                title={t.title}
+                style={{
+                  height:50,
+                  border:'none',
+                  borderRadius:18,
+                  cursor:'pointer',
+                  fontSize:22,
+                  background:active
+                    ? darkMode
+                      ? 'linear-gradient(135deg,#064E3B,#164E63)'
+                      : 'linear-gradient(135deg,#D1FAE5,#CFFAFE)'
+                    : 'transparent',
+                  color:active ? theme.primary : theme.muted,
+                  display:'flex',
+                  alignItems:'center',
+                  justifyContent:'center',
+                  position:'relative',
+                  boxShadow:active
+                    ? darkMode
+                      ? '0 8px 18px rgba(52,211,153,.14)'
+                      : '0 8px 18px rgba(14,159,110,.16)'
+                    : 'none',
+                  transition:'all .18s ease'
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    transform:active
+                      ? 'translateY(-2px) scale(1.08)'
+                      : 'none',
+                    transition:'transform .18s ease'
+                  }}
+                >
+                  {t.icon}
+                </span>
+
+                {active && (
+                  <span style={{
+                    position:'absolute',
+                    bottom:6,
+                    width:5,
+                    height:5,
+                    borderRadius:'50%',
+                    background:theme.primary
+                  }}/>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </nav>
+
     </div>
   )
 }
