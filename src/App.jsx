@@ -1225,18 +1225,16 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
       {lightbox&&imgUrl&&imgOk&&(
         <ImageLightbox src={imgUrl} alt={brand.nameEN} onClose={()=>setLightbox(false)}/>
       )}
-      {/* backdrop */}
+      {/* backdrop + flex-end centering */}
       <div onClick={onClose} style={{
         position:'fixed',inset:0,zIndex:800,background:'rgba(15,31,20,.45)',
-        animation:'fadeIn .18s ease'
-      }}/>
+        display:'flex',alignItems:'flex-end',justifyContent:'center'
+      }}>
       {/* sheet */}
       <div onClick={e=>e.stopPropagation()} style={{
-        position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',
         width:'100%',maxWidth:540,
         background:'#fff',borderRadius:'22px 22px 0 0',
         maxHeight:'92vh',overflowY:'auto',
-        zIndex:801,
         boxShadow:'0 -10px 50px rgba(0,0,0,.22)',
         padding:'0 0 44px'
       }}>
@@ -1369,15 +1367,19 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
           )}
         </div>
       </div>
+      </div>
     </>
   )
 }
 
 // ── Ingredient Lookup — Brand Row ─────────────────────────────────────────
-function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClick}){
+function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClick, imgCount}){
   const [added,setAdded]=useState(false)
   const [imgOk,setImgOk]=useState(true)
-  const imgUrl=getDrugImage(brand.licId)
+  const [lightbox,setLightbox]=useState(false)
+  // imgCount dep forces re-render after drug_images.json loads
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const imgUrl=useMemo(()=>getDrugImage(brand.licId),[brand.licId,imgCount])
   const {T}=useLang()
   function handleAdd(){ setAdded(true); addToMyDrugs&&addToMyDrugs(brand) }
   function sendToDDI(e){ e.stopPropagation(); window.dispatchEvent(new CustomEvent('send-to-ddi',{detail:brand})) }
@@ -1385,8 +1387,12 @@ function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClic
   const priceBand=isStaff&&p&&priceHigh
     ? p<=priceLow?'low':p<=priceHigh?'mid':'high'
     : null
-  const hasImg=imgUrl&&imgOk
+  const hasImg=!!(imgUrl&&imgOk)
   return(
+    <>
+    {lightbox&&hasImg&&(
+      <ImageLightbox src={imgUrl} alt={brand.nameEN} onClose={e=>{e.stopPropagation();setLightbox(false)}}/>
+    )}
     <div
       onClick={()=>onCardClick&&onCardClick(brand)}
       onMouseEnter={e=>{
@@ -1404,17 +1410,18 @@ function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClic
         border:`1px solid ${C.border}`,borderRadius:12,background:'#fafafa',
         cursor:'pointer',transition:'all .14s ease'
       }}>
-      {/* thumb or placeholder */}
-      <div style={{
-        width:52,height:52,flexShrink:0,borderRadius:10,overflow:'hidden',
-        border:`1px solid ${C.border}`,background:'#fff',
-        display:'flex',alignItems:'center',justifyContent:'center',fontSize:22
-      }}>
-        {hasImg
-          ? <img src={imgUrl} alt={brand.nameEN} onError={()=>setImgOk(false)}
-              style={{width:'100%',height:'100%',objectFit:'contain',padding:3}}/>
-          : '💊'}
-      </div>
+      {hasImg&&(
+        <div
+          onClick={e=>{ e.stopPropagation(); setLightbox(true) }}
+          style={{
+            width:52,height:52,flexShrink:0,borderRadius:10,overflow:'hidden',
+            border:`1px solid ${C.border}`,background:'#fff',cursor:'zoom-in',
+            display:'flex',alignItems:'center',justifyContent:'center'
+          }}>
+          <img src={imgUrl} alt={brand.nameEN} onError={()=>setImgOk(false)}
+            style={{width:'100%',height:'100%',objectFit:'contain',padding:3}}/>
+        </div>
+      )}
       {/* main info */}
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
@@ -1453,6 +1460,7 @@ function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClic
       {/* chevron hint */}
       <span style={{color:C.muted,fontSize:16,flexShrink:0,opacity:.5}}>›</span>
     </div>
+    </>
   )
 }
 
@@ -1769,7 +1777,7 @@ function BulkSearch(){
 }
 
 // ── Lookup Page — mode switcher wrapping Search / Browse / Bulk ───────────
-function LookupPage({addToMyDrugs,ocrQuery,nhiCount}){
+function LookupPage({addToMyDrugs,ocrQuery,nhiCount,imgCount}){
   const [mode,setMode]=useState('search')
   const {T}=useLang()
   const modes=[
@@ -1794,7 +1802,7 @@ function LookupPage({addToMyDrugs,ocrQuery,nhiCount}){
           </button>
         ))}
       </div>
-      {mode==='search'&&<IngredientLookup addToMyDrugs={addToMyDrugs} ocrQuery={ocrQuery}/>}
+      {mode==='search'&&<IngredientLookup addToMyDrugs={addToMyDrugs} ocrQuery={ocrQuery} imgCount={imgCount}/>}
       {mode==='browse'&&<ATCBrowser addToMyDrugs={addToMyDrugs} nhiCount={nhiCount}/>}
       {mode==='bulk'&&<BulkSearch/>}
     </div>
@@ -1803,7 +1811,7 @@ function LookupPage({addToMyDrugs,ocrQuery,nhiCount}){
 
 // ── Ingredient Lookup (RxNav-style, Staff + Admin only) ───────────────────
 // ocrQuery prop: pre-filled query from OCR pipeline — plug in when OCR tab is wired up
-function IngredientLookup({addToMyDrugs, ocrQuery}){
+function IngredientLookup({addToMyDrugs, ocrQuery, imgCount}){
   const [query,setQuery]=useState(ocrQuery||'')
   const [concepts,setConcepts]=useState([])
   const [showDD,setShowDD]=useState(false)
@@ -2019,7 +2027,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
               ?filteredBrands.map(b=>(
                 <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}
                   priceLow={priceLow} priceHigh={priceHigh}
-                  onCardClick={setDetailBrand}/>
+                  imgCount={imgCount} onCardClick={setDetailBrand}/>
               ))
               :<Card style={{textAlign:'center',color:C.muted,padding:32}}>
                 {T.noBrandsMatch}
@@ -3925,6 +3933,7 @@ function AppInner(){
   const [showSignup,setShowSignup]=useState(false)
   const [showSignOutConfirm,setShowSignOutConfirm]=useState(false)
   const [nhiCount,setNhiCount]=useState(0)
+  const [imgCount,setImgCount]=useState(0)
   const [darkMode,setDarkMode]=useState(false)
   const [language,setLanguage]=useState('zhTW')
   const [ddiPreset,setDdiPreset]=useState(null)
@@ -3943,7 +3952,7 @@ function AppInner(){
 
   useEffect(()=>{
     loadNHIDrugs().then(n=>{ if(n>0) setNhiCount(n) })
-    loadDrugImages()
+    loadDrugImages().then(n=>{ if(n>0) setImgCount(n) })
   },[])
 
   useEffect(()=>{
@@ -4257,7 +4266,7 @@ function AppInner(){
         }}>
           {tab==='search' && <DrugSearch addToMyDrugs={addToMyDrugs}/>}
           {tab==='scan' && (<ScanRx addToMyDrugs={addToMyDrugs}/>)}
-          {tab==='lookup' && <LookupPage addToMyDrugs={addToMyDrugs} nhiCount={nhiCount}/>}
+          {tab==='lookup' && <LookupPage addToMyDrugs={addToMyDrugs} nhiCount={nhiCount} imgCount={imgCount}/>}
           {tab==='interact' && <DrugInteractionCenter preset={ddiPreset}/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
