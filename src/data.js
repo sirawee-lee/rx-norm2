@@ -30,6 +30,13 @@ export const DRUGS = [
 // Live drug list: starts with fallback, replaced when NHI JSON loads
 export let DRUGS_LIVE = [...DRUGS]
 
+// Drug image lookup: licId → mcp.fda.gov.tw image URL (built by scripts/build_drug_images.mjs)
+let DRUG_IMAGES = {}
+
+export function getDrugImage(licId) {
+  return licId ? DRUG_IMAGES[licId] || null : null
+}
+
 // Load full NHI dataset from preprocessed JSON (45k active drugs)
 export async function loadNHIDrugs() {
   try {
@@ -40,6 +47,19 @@ export async function loadNHIDrugs() {
     return data.length
   } catch (e) {
     console.warn('NHI JSON load failed, using fallback:', e.message)
+    return 0
+  }
+}
+
+// Load drug appearance images (Taiwan FDA mcp.fda.gov.tw)
+export async function loadDrugImages() {
+  try {
+    const res = await fetch('/drug_images.json')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    DRUG_IMAGES = await res.json()
+    return Object.keys(DRUG_IMAGES).length
+  } catch (e) {
+    console.warn('Drug images load failed:', e.message)
     return 0
   }
 }
@@ -227,6 +247,60 @@ export const INTERACTION_DB = [
     management: 'Add PPI prophylaxis (e.g., omeprazole) for patients on both agents. Use minimum effective doses.',
   },
 ]
+
+// Search DRUGS_LIVE grouped by ingredient (concept root).
+// Returns concept groups: { ingredient, atc, atcCategory, brands[], brandCount, score }
+// Supports: generic name (EN), ATC code prefix, Chinese name substring, brand name substring.
+// Designed as the data layer for the IngredientLookup (RxNav-style) UI.
+// OCR plug-in: call searchByIngredient(ocrExtractedText) to resolve OCR results to ingredient groups.
+export function searchByIngredient(query) {
+  if (!query || query.trim().length < 1) return []
+  const q = query.toLowerCase().trim()
+
+  const groups = new Map()
+
+  for (const d of DRUGS_LIVE) {
+    const ingr   = (d.ingredient || '').toLowerCase()
+    const atc    = (d.atc        || '').toLowerCase()
+    const nameEN = (d.nameEN     || '').toLowerCase()
+    const nameZH = d.nameZH || ''
+
+    let score = 0
+    if      (ingr === q)         score = 1.00
+    else if (ingr.startsWith(q)) score = 0.92
+    else if (atc  === q)         score = 0.95
+    else if (atc.startsWith(q))  score = 0.85
+    else if (ingr.includes(q))   score = 0.75
+    else if (nameZH.includes(q)) score = 0.70
+    else if (nameEN.includes(q)) score = 0.60
+    if (score === 0) continue
+
+    const key = ingr || d.id
+    if (!groups.has(key)) {
+      groups.set(key, {
+        ingredient:   d.ingredient,
+        atc:          d.atc || '',
+        atcCategory:  ATC_CATEGORIES[d.atc?.[0]?.toUpperCase()] || '',
+        brands:       [],
+        score:        0,
+      })
+    }
+    const g = groups.get(key)
+    g.brands.push(d)
+    if (score > g.score) {
+      g.score = score
+      if (d.atc) {
+        g.atc         = d.atc
+        g.atcCategory = ATC_CATEGORIES[d.atc[0]?.toUpperCase()] || ''
+      }
+    }
+  }
+
+  return [...groups.values()]
+    .map(g => ({ ...g, brandCount: g.brands.length }))
+    .sort((a, b) => b.score !== a.score ? b.score - a.score : b.brandCount - a.brandCount)
+    .slice(0, 30)
+}
 
 // Find therapeutic alternatives by ATC code (same level-4 prefix, deduplicated by ingredient)
 export function findAlternatives(drug, maxResults = 8) {

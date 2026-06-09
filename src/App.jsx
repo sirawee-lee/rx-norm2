@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { AuthProvider, useAuth } from './auth.jsx'
 import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions,
-         ATC_CATEGORIES, drugClassLabel, computeStats, findAlternatives, matchOcrText } from './data.js'
+         ATC_CATEGORIES, drugClassLabel, computeStats, findAlternatives, matchOcrText,
+         searchByIngredient, loadDrugImages, getDrugImage } from './data.js'
 
 
 const D = {
@@ -45,6 +46,7 @@ const LANG = {
     settings:'Settings',
     interact:'Drugs Interaction',
     admin:'Admin Panel',
+    lookup:'Drug Lookup',
     signIn:'Sign In',
     signOut:'Sign Out',
     signedInAs:'Signed in as',
@@ -74,6 +76,7 @@ const LANG = {
     settings:'設定',
     interact:'藥物交互作用',
     admin:'管理面板',
+    lookup:'藥品查詢',
     signIn:'登入',
     signOut:'登出',
     signedInAs:'已登入為',
@@ -926,6 +929,347 @@ function DrugSearch({addToMyDrugs}){
         </>
       )}
     </div>  
+  )
+}
+
+// ── Ingredient Lookup — Concept Card ─────────────────────────────────────
+function ConceptCard({concept, onClick}){
+  const top=concept.brands.slice(0,3)
+  return(
+    <Card style={{cursor:'pointer'}} onClick={onClick}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:800,fontSize:16,marginBottom:5}}>{concept.ingredient}</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:7}}>
+            {concept.atc&&(
+              <span style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'#dbeafe',color:'#1d4ed8',fontWeight:700}}>
+                ATC: {concept.atc}
+              </span>
+            )}
+            {concept.atcCategory&&(
+              <span style={{fontSize:11,padding:'2px 8px',borderRadius:6,background:'#f3f4f6',color:'#6b7280'}}>
+                {concept.atcCategory}
+              </span>
+            )}
+          </div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>
+            {top.map(b=>b.nameEN).join(' · ')}
+            {concept.brandCount>3&&<span style={{color:C.primary}}> +{concept.brandCount-3} more</span>}
+          </div>
+        </div>
+        <div style={{
+          display:'flex',flexDirection:'column',alignItems:'center',
+          background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+          borderRadius:12,padding:'8px 14px',flexShrink:0,minWidth:52
+        }}>
+          <span style={{fontSize:22,fontWeight:900,color:C.primary,lineHeight:1}}>{concept.brandCount}</span>
+          <span style={{fontSize:10,color:C.muted,fontWeight:600,marginTop:2}}>brands</span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Ingredient Lookup — Brand Row ─────────────────────────────────────────
+function BrandRow({brand, isStaff, addToMyDrugs}){
+  const [added,setAdded]=useState(false)
+  const [imgOk,setImgOk]=useState(true)
+  const imgUrl=getDrugImage(brand.licId)
+  function handleAdd(){ setAdded(true); addToMyDrugs&&addToMyDrugs(brand) }
+  return(
+    <div style={{
+      display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',
+      border:`1px solid ${C.border}`,borderRadius:10,background:'#fafafa',
+      transition:'background .12s'
+    }}
+    onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
+    onMouseLeave={e=>e.currentTarget.style.background='#fafafa'}>
+      {imgUrl&&imgOk&&(
+        <img src={imgUrl} alt={brand.nameEN}
+          onError={()=>setImgOk(false)}
+          style={{
+            width:56,height:56,objectFit:'contain',borderRadius:8,
+            border:`1px solid ${C.border}`,flexShrink:0,background:'#fff',
+            padding:2
+          }}/>
+      )}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
+          <span style={{fontWeight:700,fontSize:14}}>{brand.nameEN}</span>
+          <DrugClassBadge raw={brand.drugClass}/>
+        </div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{brand.nameZH}</div>
+        <div style={{fontSize:11,color:C.muted,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <span>{dosageFormEN(brand.form)||brand.form}</span>
+          {brand.strength&&<><span>·</span><span>{brand.strength}</span></>}
+          {brand.manufacturer&&<><span>·</span><span>{brand.manufacturer}</span></>}
+          {isStaff&&brand.price&&(
+            <><span>·</span><span style={{color:C.primary,fontWeight:700}}>NT$ {brand.price}</span></>
+          )}
+        </div>
+        <div style={{display:'flex',gap:10,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{fontSize:10,color:'#94a3b8'}}>NHI: {brand.id}</span>
+          {brand.licId&&(
+            <a href={`https://lmspiq.fda.gov.tw/web/DRPIQ/DRPIQ1000Result?licId=${brand.licId}`}
+              target="_blank" rel="noreferrer"
+              style={{fontSize:10,color:C.primary,textDecoration:'none',fontWeight:600}}
+              onClick={e=>e.stopPropagation()}>
+              FDA →
+            </a>
+          )}
+          {isStaff&&brand.nhiPdf&&(
+            <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
+              target="_blank" rel="noreferrer"
+              style={{fontSize:10,color:'#7c3aed',textDecoration:'none',fontWeight:600}}
+              onClick={e=>e.stopPropagation()}>
+              NHI PDF →
+            </a>
+          )}
+        </div>
+      </div>
+      <button onClick={handleAdd} disabled={added}
+        style={{padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',
+          cursor:added?'default':'pointer',flexShrink:0,marginTop:2,
+          background:added?'#dcfce7':C.primary,color:added?'#166534':'#fff'}}>
+        {added?'✓':'+ Add'}
+      </button>
+    </div>
+  )
+}
+
+// ── Ingredient Lookup (RxNav-style, Staff + Admin only) ───────────────────
+// ocrQuery prop: pre-filled query from OCR pipeline — plug in when OCR tab is wired up
+function IngredientLookup({addToMyDrugs, ocrQuery}){
+  const [query,setQuery]=useState(ocrQuery||'')
+  const [concepts,setConcepts]=useState([])
+  const [showDD,setShowDD]=useState(false)
+  const [selected,setSelected]=useState(null)
+  const [filter,setFilter]=useState({form:'all',cls:'all'})
+  const [sortBy,setSortBy]=useState('price')
+  const [copyDone,setCopyDone]=useState(false)
+  const {isStaff}=useAuth()
+  const wrapRef=useRef()
+
+  useEffect(()=>{
+    if(ocrQuery){setQuery(ocrQuery);runSearch(ocrQuery)}
+  },[ocrQuery])
+
+  useEffect(()=>{
+    function h(e){if(wrapRef.current&&!wrapRef.current.contains(e.target))setShowDD(false)}
+    document.addEventListener('mousedown',h); return()=>document.removeEventListener('mousedown',h)
+  },[])
+
+  function runSearch(q){
+    const res=q.trim().length>=1?searchByIngredient(q):[]
+    setConcepts(res); setShowDD(q.trim().length>=1&&res.length>0); setSelected(null)
+  }
+  function onType(q){setQuery(q);runSearch(q)}
+  function pickConcept(c){
+    setSelected(c); setShowDD(false); setFilter({form:'all',cls:'all'}); setSortBy('price')
+    addHist({type:'lookup',query:c.ingredient,result:c.atc,score:c.score})
+  }
+  function clearSearch(){setQuery('');setConcepts([]);setSelected(null);setShowDD(false)}
+
+  const forms  =selected?['all',...new Set(selected.brands.map(b=>b.form).filter(Boolean))]:[]
+  const classes=selected?['all',...new Set(selected.brands.map(b=>drugClassLabel(b.drugClass)).filter(Boolean))]:[]
+
+  const filteredBrands=selected?selected.brands
+    .filter(b=>filter.form==='all'||b.form===filter.form)
+    .filter(b=>filter.cls==='all'||drugClassLabel(b.drugClass)===filter.cls)
+    .sort((a,b)=>sortBy==='price'
+      ?parseFloat(a.price||0)-parseFloat(b.price||0)
+      :a.nameEN.localeCompare(b.nameEN))
+  :[]
+
+  function copyBrands(){
+    const txt=filteredBrands.map(b=>`${b.nameEN}${b.strength?' ('+b.strength+')':''}`).join('\n')
+    navigator.clipboard?.writeText(txt)
+    setCopyDone(true); setTimeout(()=>setCopyDone(false),2000)
+  }
+
+  return(
+    <div>
+      <div ref={wrapRef} style={{position:'relative',marginBottom:16}}>
+        <div style={{position:'relative'}}>
+          <span style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)',fontSize:16,pointerEvents:'none'}}>
+            🔍
+          </span>
+          <input value={query} onChange={e=>onType(e.target.value)}
+            onFocus={()=>query.trim().length>=1&&concepts.length>0&&setShowDD(true)}
+            placeholder="Generic name / ATC code / 成分名稱 (e.g. metformin, N05AH04, 氧化鎂)"
+            style={{
+              width:'100%',padding:'13px 40px 13px 40px',fontSize:14,borderRadius:12,
+              fontFamily:'inherit',boxSizing:'border-box',
+              border:`1.5px solid ${showDD?C.primary:C.border}`,outline:'none',
+              boxShadow:'0 2px 8px rgba(0,0,0,.07)',transition:'border-color .15s'
+            }}/>
+          {query&&(
+            <button onClick={clearSearch} style={{
+              position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+              border:'none',background:'none',fontSize:20,cursor:'pointer',color:C.muted
+            }}>×</button>
+          )}
+        </div>
+
+        {showDD&&(
+          <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:200,background:'#fff',
+            border:`1px solid ${C.border}`,borderTop:'none',borderRadius:'0 0 12px 12px',
+            boxShadow:'0 8px 24px rgba(0,0,0,.13)',maxHeight:300,overflowY:'auto'}}>
+            {concepts.slice(0,8).map((c,i)=>(
+              <div key={c.ingredient} onMouseDown={()=>pickConcept(c)}
+                style={{
+                  padding:'10px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',
+                  alignItems:'center',background:'#fff',
+                  borderBottom:i<Math.min(concepts.length,8)-1?`1px solid ${C.border}`:'none'
+                }}
+                onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
+                onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14}}>{c.ingredient}</div>
+                  <div style={{fontSize:12,color:C.muted}}>
+                    {c.atc&&<span style={{marginRight:8}}>{c.atc}</span>}
+                    {c.atcCategory}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize:12,fontWeight:800,padding:'3px 10px',borderRadius:10,
+                  background:'#dcfce7',color:'#166534',flexShrink:0,marginLeft:8
+                }}>{c.brandCount}</span>
+              </div>
+            ))}
+            {concepts.length>8&&(
+              <div style={{padding:'8px 16px',fontSize:12,color:C.muted,textAlign:'center'}}>
+                {concepts.length-8} more — keep typing to narrow down
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {ocrQuery&&ocrQuery===query&&(
+        <div style={{
+          display:'inline-flex',alignItems:'center',gap:6,
+          background:'#fef3c7',border:'1px solid #fbbf24',borderRadius:8,
+          padding:'5px 12px',fontSize:12,color:'#92400e',fontWeight:600,marginBottom:12
+        }}>
+          🔤 Query from OCR pipeline
+        </div>
+      )}
+
+      {selected?(
+        <div>
+          <button onClick={()=>setSelected(null)} style={{
+            border:'none',background:'transparent',color:C.primary,cursor:'pointer',
+            fontSize:13,fontWeight:700,marginBottom:14,padding:0
+          }}>← All results</button>
+
+          <div style={{
+            background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+            border:`1px solid ${C.primary}33`,borderRadius:14,
+            padding:'16px 18px',marginBottom:14
+          }}>
+            <div style={{fontSize:24,fontWeight:900,color:C.text,marginBottom:3}}>{selected.ingredient}</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>成分根節點 · Ingredient Root Concept</div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {selected.atc&&(
+                <span style={{
+                  fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
+                  background:'#dbeafe',color:'#1d4ed8',border:'1px solid #bfdbfe'
+                }}>ATC: {selected.atc}</span>
+              )}
+              {selected.atcCategory&&(
+                <span style={{
+                  fontSize:12,padding:'3px 12px',borderRadius:8,
+                  background:'#f3f4f6',color:'#374151'
+                }}>{selected.atcCategory}</span>
+              )}
+              <span style={{
+                fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
+                background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'
+              }}>{selected.brandCount} NHI brands</span>
+            </div>
+          </div>
+
+          <div style={{
+            display:'flex',gap:8,flexWrap:'wrap',marginBottom:12,
+            padding:'10px 12px',background:'#f8fafc',borderRadius:10,
+            border:`1px solid ${C.border}`,alignItems:'center'
+          }}>
+            <select value={filter.form} onChange={e=>setFilter(p=>({...p,form:e.target.value}))}
+              style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
+                fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
+              {forms.map(f=><option key={f} value={f}>{f==='all'?'All forms':dosageFormEN(f)||f}</option>)}
+            </select>
+            <select value={filter.cls} onChange={e=>setFilter(p=>({...p,cls:e.target.value}))}
+              style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
+                fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
+              {classes.map(cc=><option key={cc} value={cc}>{cc==='all'?'All classes':cc}</option>)}
+            </select>
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
+              style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
+                fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
+              <option value="price">Price ↑</option>
+              <option value="name">Name A-Z</option>
+            </select>
+            <button onClick={copyBrands} style={{
+              padding:'5px 10px',borderRadius:7,border:`1px solid ${C.border}`,fontSize:12,
+              fontWeight:700,cursor:'pointer',
+              background:copyDone?'#dcfce7':'#fff',color:copyDone?'#166534':C.muted
+            }}>{copyDone?'✓ Copied':'Copy all names'}</button>
+            <span style={{fontSize:11,color:C.muted,marginLeft:'auto'}}>
+              {filteredBrands.length}/{selected.brandCount}
+            </span>
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {filteredBrands.length>0
+              ?filteredBrands.map(b=>(
+                <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}/>
+              ))
+              :<Card style={{textAlign:'center',color:C.muted,padding:32}}>
+                No brands match the current filters.
+              </Card>
+            }
+          </div>
+        </div>
+      ):(
+        <>
+          {concepts.length>0&&!showDD?(
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {concepts.map(c=>(
+                <ConceptCard key={c.ingredient} concept={c} onClick={()=>pickConcept(c)}/>
+              ))}
+            </div>
+          ):query.trim().length>=2&&!showDD?(
+            <Card style={{textAlign:'center',color:C.muted,padding:40}}>
+              <div style={{fontSize:36,marginBottom:8}}>🔍</div>
+              <div>No ingredients found for "<b>{query}</b>"</div>
+              <div style={{fontSize:13,marginTop:6,color:C.muted}}>
+                Try: "metformin" · "quetiapine" · "N05AH" · "A10BA02" · "氧化鎂"
+              </div>
+            </Card>
+          ):!query?(
+            <Card style={{color:C.muted,padding:'32px 24px',textAlign:'center'}}>
+              <div style={{fontSize:40,marginBottom:14}}>🧬</div>
+              <div style={{fontWeight:800,fontSize:17,marginBottom:8,color:C.text}}>
+                Drug Lookup
+              </div>
+              <div style={{fontSize:13,lineHeight:1.7,marginBottom:16,color:C.muted,maxWidth:320,margin:'0 auto 16px'}}>
+                Search by generic name or ATC code to see all NHI-listed brands — the same active ingredient under different brand names used across clinics.
+              </div>
+              <div style={{
+                background:'#f0fdf4',borderRadius:10,padding:'12px 16px',
+                fontSize:12,color:'#166534',lineHeight:1.9,textAlign:'left',display:'inline-block'
+              }}>
+                <b>Generic:</b> metformin · quetiapine · omeprazole<br/>
+                <b>ATC class:</b> N05AH · A10BA · C09AA · N02BE<br/>
+                <b>Chinese:</b> 氧化鎂 · 二甲雙胍 · 奧美拉唑
+              </div>
+            </Card>
+          ):null}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -2748,9 +3092,8 @@ function AppInner(){
   const T = LANG[language]
 
   useEffect(()=>{
-    loadNHIDrugs().then(n=>{
-      if(n>0) setNhiCount(n)
-    })
+    loadNHIDrugs().then(n=>{ if(n>0) setNhiCount(n) })
+    loadDrugImages()
   },[])
 
   useEffect(()=>{
@@ -2763,6 +3106,7 @@ function AppInner(){
   const tabs=[
     {id:'search', icon:'🔍', title:T.search},
     {id:'scan', icon:'📷', title:T.scan},
+    {id:'lookup', icon:'🧬', title:T.lookup, minRole:'staff'},
     {id:'interact', icon:'⚠️', title:T.interact, minRole:'staff'},
     {id:'admin', icon:'🛠️', title:T.admin, minRole:'admin'},
     {id:'settings', icon:'⚙️', title:T.settings},
@@ -2775,6 +3119,7 @@ function AppInner(){
   const pageTitle={
     scan:T.scan,
     search:T.search,
+    lookup:T.lookup,
     meds:T.meds,
     settings:T.settings,
     interact:T.interact,
@@ -3044,6 +3389,7 @@ function AppInner(){
         }}>
           {tab==='search' && <DrugSearch addToMyDrugs={addToMyDrugs}/>}
           {tab==='scan' && (<ScanRx addToMyDrugs={addToMyDrugs}/>)}
+          {tab==='lookup' && <IngredientLookup addToMyDrugs={addToMyDrugs}/>}
           {tab==='interact' && <DrugInteractionCenter/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
