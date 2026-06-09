@@ -65,7 +65,47 @@ const LANG = {
     managePrefs:'Manage your app preferences.',
     light:'Light',
     dark:'Dark',
-    open:'Open'
+    open:'Open',
+    // Drug Search
+    searchPlaceholder:'Search drugs…',
+    backToResults:'← Back to results',
+    activeIngredient:'Active Ingredient (成分根節點)',
+    nhiCode:'NHI Code',
+    atcCode:'ATC Code',
+    brandName:'Brand Name',
+    chineseName:'Chinese Name',
+    dosageForm:'Dosage Form',
+    dosageLabel:'Dosage',
+    nhiPriceLabel:'NHI Price (NT$)',
+    manufacturerLabel:'Manufacturer',
+    priceLockedMsg:'NHI reimbursement price is available to Hospital Staff and Admin only.',
+    routingTrace:'🏥 Routing & Trace (Staff Only)',
+    mappingPath:'Mapping path',
+    scanAgain:'← Scan Again',
+    addMyDrugs:'+ Add to My Drugs',
+    reportBtn:'⚠ Report Error',
+    matchPct:'% match',
+    moreKeepTyping:'more — keep typing to narrow down',
+    // Drug Lookup
+    lookupPlaceholder:'Generic name / ATC code (e.g. metformin, N05AH04, 氧化鎂)',
+    ingredientRoot:'成分根節點 · Ingredient Root Concept',
+    nhiBrands:'NHI brands',
+    brandsLabel:'brands',
+    moreCount:'more',
+    allForms:'All forms',
+    allClasses:'All classes',
+    sortByPrice:'Price ↑',
+    sortByName:'Name A-Z',
+    copyAllNames:'Copy all names',
+    copied:'✓ Copied',
+    backAll:'← All results',
+    noBrandsMatch:'No brands match the current filters.',
+    noIngredientFound:'No ingredients found for',
+    lookupExamples:'<b>Generic:</b> metformin · quetiapine · omeprazole<br/><b>ATC class:</b> N05AH · A10BA · C09AA · N02BE<br/><b>Chinese:</b> 氧化鎂 · 二甲雙胍 · 奧美拉唑',
+    lookupDesc:'Search by generic name or ATC code to see all NHI-listed brands — the same active ingredient under different brand names used across clinics.',
+    ocrQueryBadge:'Query from OCR pipeline',
+    addBtn:'+ Add',
+    addedBtn:'✓',
   },
 
   zhTW:{
@@ -95,8 +135,63 @@ const LANG = {
     managePrefs:'管理你的應用程式偏好設定。',
     light:'淺色',
     dark:'深色',
-    open:'開啟'
+    open:'開啟',
+    // Drug Search
+    searchPlaceholder:'搜尋藥品…',
+    backToResults:'← 返回結果',
+    activeIngredient:'有效成分（成分根節點）',
+    nhiCode:'健保代碼',
+    atcCode:'ATC 代碼',
+    brandName:'英文品名',
+    chineseName:'中文品名',
+    dosageForm:'劑型',
+    dosageLabel:'規格',
+    nhiPriceLabel:'健保價（NT$）',
+    manufacturerLabel:'製造商',
+    priceLockedMsg:'健保給付價格僅供醫院員工及管理員查看。',
+    routingTrace:'🏥 路由追蹤（員工專用）',
+    mappingPath:'對應路徑',
+    scanAgain:'← 重新掃描',
+    addMyDrugs:'+ 加入我的藥物',
+    reportBtn:'⚠ 回報錯誤',
+    matchPct:'% 符合',
+    moreKeepTyping:'個更多 — 繼續輸入以縮小範圍',
+    // Drug Lookup
+    lookupPlaceholder:'成分名稱 / ATC 代碼（例如：metformin、N05AH04、氧化鎂）',
+    ingredientRoot:'成分根節點 · Ingredient Root Concept',
+    nhiBrands:'個健保品牌',
+    brandsLabel:'個品牌',
+    moreCount:'個更多',
+    allForms:'所有劑型',
+    allClasses:'所有藥品分類',
+    sortByPrice:'價格低→高',
+    sortByName:'名稱 A-Z',
+    copyAllNames:'複製所有品名',
+    copied:'✓ 已複製',
+    backAll:'← 回到結果',
+    noBrandsMatch:'無符合目前篩選條件的品牌。',
+    noIngredientFound:'找不到符合的成分：',
+    lookupExamples:'<b>學名：</b>metformin · quetiapine · omeprazole<br/><b>ATC 分類：</b>N05AH · A10BA · C09AA · N02BE<br/><b>中文：</b>氧化鎂 · 二甲雙胍 · 奧美拉唑',
+    lookupDesc:'輸入學名（成分）或 ATC 代碼，查看健保收載的所有品牌藥品，了解同一成分在不同診所使用的各種商品名稱。',
+    ocrQueryBadge:'來自 OCR 辨識的查詢',
+    addBtn:'+ 加入',
+    addedBtn:'✓',
   }
+}
+
+const LangCtx = createContext({ T: LANG.zhTW, language: 'zhTW', setLanguage: ()=>{} })
+function useLang() { return useContext(LangCtx) }
+
+function LangToggle(){
+  const {language,setLanguage}=useLang()
+  const active={padding:'4px 10px',fontSize:11,fontWeight:800,borderRadius:6,border:'none',cursor:'pointer',background:'#0E9F6E',color:'#fff'}
+  const inactive={padding:'4px 10px',fontSize:11,fontWeight:700,borderRadius:6,border:'none',cursor:'pointer',background:'transparent',color:'#64748b'}
+  return(
+    <div style={{display:'flex',gap:2,background:'#f1f5f9',borderRadius:8,padding:2,flexShrink:0}}>
+      <button onClick={()=>setLanguage('zhTW')} style={language==='zhTW'?active:inactive}>中文</button>
+      <button onClick={()=>setLanguage('en')} style={language==='en'?active:inactive}>EN</button>
+    </div>
+  )
 }
 
 function dosageFormEN(form){
@@ -748,6 +843,7 @@ function DrugSearch({addToMyDrugs}){
   const [selected,setSelected]=useState(null)
   const [reportDrug,setReportDrug]=useState(null)
   const {isStaff}=useAuth()
+  const {T}=useLang()
   const wrapRef=useRef()
 
   useEffect(()=>{
@@ -774,7 +870,7 @@ function DrugSearch({addToMyDrugs}){
       <div ref={wrapRef} style={{position:'relative',marginBottom:16}}>
         <input value={query} onChange={e=>onType(e.target.value)}
           onFocus={()=>query.length>=1&&results.length>0&&setShowDD(true)}
-          placeholder="Search..."
+          placeholder={T.searchPlaceholder}
           style={{width:'100%',padding:'12px 16px',fontSize:15,borderRadius:10,fontFamily:'inherit',
             border:`1px solid ${showDD?C.primary:C.border}`,outline:'none',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}}/>
 
@@ -798,7 +894,7 @@ function DrugSearch({addToMyDrugs}){
             ))}
             {results.length>6&&(
               <div style={{padding:'8px 16px',fontSize:12,color:C.muted,textAlign:'center'}}>
-                {results.length-6} more — keep typing to narrow down
+                {results.length-6} {T.moreKeepTyping}
               </div>
             )}
           </div>
@@ -809,7 +905,7 @@ function DrugSearch({addToMyDrugs}){
         <Card>
           <button onClick={()=>{setSelected(null);setQuery('')}}
             style={{background:'none',border:'none',color:C.primary,cursor:'pointer',fontSize:13,fontWeight:600,marginBottom:12,padding:0}}>
-            ← Back to results
+            {T.backToResults}
           </button>
           <LowConfWarning score={selected.score} name={selected.nameEN}/>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
@@ -823,7 +919,7 @@ function DrugSearch({addToMyDrugs}){
                 )}
               </div>
               <div style={{color:C.muted,fontSize:13,marginTop:2}}>
-                Active Ingredient (成分根節點)
+                {T.activeIngredient}
                 {selected.atc&&(
                   <span style={{marginLeft:8,color:C.primary,fontSize:12}}>
                     · {ATC_CATEGORIES[selected.atc[0]?.toUpperCase()]||''}
@@ -833,19 +929,19 @@ function DrugSearch({addToMyDrugs}){
             </div>
             <span style={{background:cc(selected.score)+'20',color:cc(selected.score),
               padding:'4px 12px',borderRadius:20,fontSize:12,fontWeight:600,border:`1px solid ${cc(selected.score)}44`}}>
-              {pct(selected.score)}% match
+              {pct(selected.score)}{T.matchPct}
             </span>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
             {[
-              ['NHI Code', selected.id],
-              ['ATC Code', selected.atc],
-              ['Brand Name', selected.nameEN],
-              ['Chinese Name', selected.nameZH],
-              ['Dosage Form', dosageFormEN(selected.form)],
-              ['Dosage', selected.strength],
-              isStaff ? ['NHI Price (NT$)', `NT$ ${selected.price}`] : null,
-              ['Manufacturer', selected.manufacturer],
+              [T.nhiCode, selected.id],
+              [T.atcCode, selected.atc],
+              [T.brandName, selected.nameEN],
+              [T.chineseName, selected.nameZH],
+              [T.dosageForm, dosageFormEN(selected.form)],
+              [T.dosageLabel, selected.strength],
+              isStaff ? [T.nhiPriceLabel, `NT$ ${selected.price}`] : null,
+              [T.manufacturerLabel, selected.manufacturer],
             ].filter(Boolean).map(([l,v])=>(
               <div key={l} style={{background:'#f8fafc',borderRadius:8,padding:'10px 12px'}}>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>{l}</div>
@@ -864,28 +960,28 @@ function DrugSearch({addToMyDrugs}){
           {!isStaff&&(
             <div style={{background:'#f8fafc',border:`1px dashed ${C.border}`,borderRadius:8,padding:'10px 12px',
               marginBottom:12,fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:8}}>
-              🔒 <span>NHI reimbursement price is available to Hospital Staff and Admin only.</span>
+              🔒 <span>{T.priceLockedMsg}</span>
             </div>
           )}
           <AlternativesPanel drug={selected}/>
           <ExternalLinks drug={selected}/>
           <LockedFeature minRole="staff">
             <div style={{background:C.staffBg,border:`1px solid #fbbf24`,borderRadius:8,padding:12,marginBottom:12}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>🏥 Routing & Trace (Staff Only)</div>
-              <div style={{fontSize:13}}><b>Mapping path:</b> {selected.nameEN} → {selected.ingredient} → ATC {selected.atc}</div>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>{T.routingTrace}</div>
+              <div style={{fontSize:13}}><b>{T.mappingPath}:</b> {selected.nameEN} → {selected.ingredient} → ATC {selected.atc}</div>
               <div style={{fontSize:12,color:C.muted,marginTop:4}}>Brand → Ingredient root → WHO ATC → RxNorm CUI (via API)</div>
             </div>
           </LockedFeature>
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
             <button onClick={()=>{setSelected(null);setQuery('')}}
               style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.border}`,
-                background:'#f8fafc',fontSize:13,fontWeight:600,cursor:'pointer',color:C.text}}>← Scan Again</button>
+                background:'#f8fafc',fontSize:13,fontWeight:600,cursor:'pointer',color:C.text}}>{T.scanAgain}</button>
             <button onClick={()=>addToMyDrugs && addToMyDrugs(selected)}
               style={{flex:'1 1 150px',padding:'10px',borderRadius:8,border:'none',
-                background:C.primary,fontSize:13,fontWeight:700,cursor:'pointer',color:'#fff'}}>+ Add to My Drugs</button>
+                background:C.primary,fontSize:13,fontWeight:700,cursor:'pointer',color:'#fff'}}>{T.addMyDrugs}</button>
             <button onClick={()=>setReportDrug(selected)}
               style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
-                background:'#fff5f5',fontSize:13,fontWeight:600,cursor:'pointer',color:C.danger}}>⚠ Report Error</button>
+                background:'#fff5f5',fontSize:13,fontWeight:600,cursor:'pointer',color:C.danger}}>{T.reportBtn}</button>
           </div>
         </Card>
       ):(
@@ -935,6 +1031,7 @@ function DrugSearch({addToMyDrugs}){
 // ── Ingredient Lookup — Concept Card ─────────────────────────────────────
 function ConceptCard({concept, onClick}){
   const top=concept.brands.slice(0,3)
+  const {T}=useLang()
   return(
     <Card style={{cursor:'pointer'}} onClick={onClick}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
@@ -954,7 +1051,7 @@ function ConceptCard({concept, onClick}){
           </div>
           <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>
             {top.map(b=>b.nameEN).join(' · ')}
-            {concept.brandCount>3&&<span style={{color:C.primary}}> +{concept.brandCount-3} more</span>}
+            {concept.brandCount>3&&<span style={{color:C.primary}}> +{concept.brandCount-3} {T.moreCount}</span>}
           </div>
         </div>
         <div style={{
@@ -963,7 +1060,7 @@ function ConceptCard({concept, onClick}){
           borderRadius:12,padding:'8px 14px',flexShrink:0,minWidth:52
         }}>
           <span style={{fontSize:22,fontWeight:900,color:C.primary,lineHeight:1}}>{concept.brandCount}</span>
-          <span style={{fontSize:10,color:C.muted,fontWeight:600,marginTop:2}}>brands</span>
+          <span style={{fontSize:10,color:C.muted,fontWeight:600,marginTop:2}}>{T.brandsLabel}</span>
         </div>
       </div>
     </Card>
@@ -975,6 +1072,7 @@ function BrandRow({brand, isStaff, addToMyDrugs}){
   const [added,setAdded]=useState(false)
   const [imgOk,setImgOk]=useState(true)
   const imgUrl=getDrugImage(brand.licId)
+  const {T}=useLang()
   function handleAdd(){ setAdded(true); addToMyDrugs&&addToMyDrugs(brand) }
   return(
     <div style={{
@@ -1031,7 +1129,7 @@ function BrandRow({brand, isStaff, addToMyDrugs}){
         style={{padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',
           cursor:added?'default':'pointer',flexShrink:0,marginTop:2,
           background:added?'#dcfce7':C.primary,color:added?'#166534':'#fff'}}>
-        {added?'✓':'+ Add'}
+        {added?T.addedBtn:T.addBtn}
       </button>
     </div>
   )
@@ -1048,6 +1146,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
   const [sortBy,setSortBy]=useState('price')
   const [copyDone,setCopyDone]=useState(false)
   const {isStaff}=useAuth()
+  const {T}=useLang()
   const wrapRef=useRef()
 
   useEffect(()=>{
@@ -1096,7 +1195,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           </span>
           <input value={query} onChange={e=>onType(e.target.value)}
             onFocus={()=>query.trim().length>=1&&concepts.length>0&&setShowDD(true)}
-            placeholder="Generic name / ATC code / 成分名稱 (e.g. metformin, N05AH04, 氧化鎂)"
+            placeholder={T.lookupPlaceholder}
             style={{
               width:'100%',padding:'13px 40px 13px 40px',fontSize:14,borderRadius:12,
               fontFamily:'inherit',boxSizing:'border-box',
@@ -1139,7 +1238,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             ))}
             {concepts.length>8&&(
               <div style={{padding:'8px 16px',fontSize:12,color:C.muted,textAlign:'center'}}>
-                {concepts.length-8} more — keep typing to narrow down
+                {concepts.length-8} {T.moreKeepTyping}
               </div>
             )}
           </div>
@@ -1152,7 +1251,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           background:'#fef3c7',border:'1px solid #fbbf24',borderRadius:8,
           padding:'5px 12px',fontSize:12,color:'#92400e',fontWeight:600,marginBottom:12
         }}>
-          🔤 Query from OCR pipeline
+          🔤 {T.ocrQueryBadge}
         </div>
       )}
 
@@ -1161,7 +1260,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           <button onClick={()=>setSelected(null)} style={{
             border:'none',background:'transparent',color:C.primary,cursor:'pointer',
             fontSize:13,fontWeight:700,marginBottom:14,padding:0
-          }}>← All results</button>
+          }}>{T.backAll}</button>
 
           <div style={{
             background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
@@ -1169,7 +1268,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             padding:'16px 18px',marginBottom:14
           }}>
             <div style={{fontSize:24,fontWeight:900,color:C.text,marginBottom:3}}>{selected.ingredient}</div>
-            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>成分根節點 · Ingredient Root Concept</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:10}}>{T.ingredientRoot}</div>
             <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               {selected.atc&&(
                 <span style={{
@@ -1186,7 +1285,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
               <span style={{
                 fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
                 background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'
-              }}>{selected.brandCount} NHI brands</span>
+              }}>{selected.brandCount} {T.nhiBrands}</span>
             </div>
           </div>
 
@@ -1198,24 +1297,24 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             <select value={filter.form} onChange={e=>setFilter(p=>({...p,form:e.target.value}))}
               style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
                 fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
-              {forms.map(f=><option key={f} value={f}>{f==='all'?'All forms':dosageFormEN(f)||f}</option>)}
+              {forms.map(f=><option key={f} value={f}>{f==='all'?T.allForms:dosageFormEN(f)||f}</option>)}
             </select>
             <select value={filter.cls} onChange={e=>setFilter(p=>({...p,cls:e.target.value}))}
               style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
                 fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
-              {classes.map(cc=><option key={cc} value={cc}>{cc==='all'?'All classes':cc}</option>)}
+              {classes.map(cc=><option key={cc} value={cc}>{cc==='all'?T.allClasses:cc}</option>)}
             </select>
             <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
               style={{padding:'5px 8px',borderRadius:7,border:`1px solid ${C.border}`,
                 fontSize:12,fontFamily:'inherit',color:C.text,background:'#fff',cursor:'pointer'}}>
-              <option value="price">Price ↑</option>
-              <option value="name">Name A-Z</option>
+              <option value="price">{T.sortByPrice}</option>
+              <option value="name">{T.sortByName}</option>
             </select>
             <button onClick={copyBrands} style={{
               padding:'5px 10px',borderRadius:7,border:`1px solid ${C.border}`,fontSize:12,
               fontWeight:700,cursor:'pointer',
               background:copyDone?'#dcfce7':'#fff',color:copyDone?'#166534':C.muted
-            }}>{copyDone?'✓ Copied':'Copy all names'}</button>
+            }}>{copyDone?T.copied:T.copyAllNames}</button>
             <span style={{fontSize:11,color:C.muted,marginLeft:'auto'}}>
               {filteredBrands.length}/{selected.brandCount}
             </span>
@@ -1227,7 +1326,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
                 <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}/>
               ))
               :<Card style={{textAlign:'center',color:C.muted,padding:32}}>
-                No brands match the current filters.
+                {T.noBrandsMatch}
               </Card>
             }
           </div>
@@ -1243,7 +1342,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           ):query.trim().length>=2&&!showDD?(
             <Card style={{textAlign:'center',color:C.muted,padding:40}}>
               <div style={{fontSize:36,marginBottom:8}}>🔍</div>
-              <div>No ingredients found for "<b>{query}</b>"</div>
+              <div>{T.noIngredientFound} "<b>{query}</b>"</div>
               <div style={{fontSize:13,marginTop:6,color:C.muted}}>
                 Try: "metformin" · "quetiapine" · "N05AH" · "A10BA02" · "氧化鎂"
               </div>
@@ -1252,19 +1351,15 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             <Card style={{color:C.muted,padding:'32px 24px',textAlign:'center'}}>
               <div style={{fontSize:40,marginBottom:14}}>🧬</div>
               <div style={{fontWeight:800,fontSize:17,marginBottom:8,color:C.text}}>
-                Drug Lookup
+                {T.lookup}
               </div>
               <div style={{fontSize:13,lineHeight:1.7,marginBottom:16,color:C.muted,maxWidth:320,margin:'0 auto 16px'}}>
-                Search by generic name or ATC code to see all NHI-listed brands — the same active ingredient under different brand names used across clinics.
+                {T.lookupDesc}
               </div>
               <div style={{
                 background:'#f0fdf4',borderRadius:10,padding:'12px 16px',
                 fontSize:12,color:'#166534',lineHeight:1.9,textAlign:'left',display:'inline-block'
-              }}>
-                <b>Generic:</b> metformin · quetiapine · omeprazole<br/>
-                <b>ATC class:</b> N05AH · A10BA · C09AA · N02BE<br/>
-                <b>Chinese:</b> 氧化鎂 · 二甲雙胍 · 奧美拉唑
-              </div>
+              }} dangerouslySetInnerHTML={{__html:T.lookupExamples}}/>
             </Card>
           ):null}
         </>
@@ -3077,7 +3172,7 @@ function AppInner(){
   const [showSignOutConfirm,setShowSignOutConfirm]=useState(false)
   const [nhiCount,setNhiCount]=useState(0)
   const [darkMode,setDarkMode]=useState(false)
-  const [language,setLanguage]=useState('en')
+  const [language,setLanguage]=useState('zhTW')
   const [toast,setToast]=useState('')
   const [myDrugs,setMyDrugs]=useState([
     {...DRUGS[6],times:['09:00'],reminderOn:true},
@@ -3158,6 +3253,7 @@ function AppInner(){
 
 
   return(
+    <LangCtx.Provider value={{T,language,setLanguage}}>
     <div style={{
       '--card':theme.card,
       '--text':theme.text,
@@ -3238,6 +3334,8 @@ function AppInner(){
             </div>
           </div>
 
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <LangToggle/>
           <button
             onClick={()=>{
               if(isSignedIn){
@@ -3278,6 +3376,7 @@ function AppInner(){
               </div>
             </div>
           </button>
+          </div>
         </div>
       </header>
 
@@ -3512,6 +3611,7 @@ function AppInner(){
       </nav>
 
     </div>
+    </LangCtx.Provider>
   )
 }
 
