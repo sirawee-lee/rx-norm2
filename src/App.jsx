@@ -142,6 +142,22 @@ const LANG = {
     checkDDI:'Check DDI',
     printMeds:'🖨 Print card',
     printTitle:'Medication Card',
+    // drug detail modal
+    clinicalInfoTitle:'Clinical Information',
+    drugNamesTitle:'Drug Names',
+    sectionIndication:'Indications',
+    sectionUsage:'Dosage & Administration',
+    sectionAdverse:'Adverse Reactions',
+    sectionContraindication:'Contraindications',
+    sectionPrecaution:'Precautions & Warnings',
+    sectionInteraction:'Drug Interactions',
+    sectionStorage:'Storage',
+    genericNameEN:'Generic Name',
+    genericNameZH:'Chinese Name',
+    brandNameLabel:'Brand Name',
+    dosageFormLabel:'Dosage Form',
+    noClinicalInfo:'Detailed clinical information not yet available for this drug.',
+    noClinicalInfoSub:'Please refer to FDA Query or NHI PDF.',
   },
 
   zhTW:{
@@ -246,6 +262,22 @@ const LANG = {
     checkDDI:'查交互作用',
     printMeds:'🖨 列印藥單',
     printTitle:'用藥清單',
+    // drug detail modal
+    clinicalInfoTitle:'藥品資訊',
+    drugNamesTitle:'藥品名稱',
+    sectionIndication:'適應症',
+    sectionUsage:'用法用量',
+    sectionAdverse:'不良反應',
+    sectionContraindication:'禁忌症',
+    sectionPrecaution:'注意事項',
+    sectionInteraction:'藥物交互作用',
+    sectionStorage:'儲存方式',
+    genericNameEN:'學名（EN）',
+    genericNameZH:'學名（中文）',
+    brandNameLabel:'商品名',
+    dosageFormLabel:'劑型',
+    noClinicalInfo:'此藥品的詳細藥學資訊暫未收錄',
+    noClinicalInfoSub:'請參考 FDA 查詢或 NHI PDF',
   }
 }
 
@@ -1196,13 +1228,702 @@ function ImageLightbox({src, alt, onClose}){
   )
 }
 
+// ── Clinical Info Database ────────────────────────────────────────────────
+// Keyed by ingredient.toLowerCase() or ATC-5 prefix; lookup tries both.
+const CLINICAL_INFO = {
+  'acetaminophen':{
+    genericZH:'乙醯胺酚（Acetaminophen / Paracetamol）',
+    indicationZH:'緩解輕至中度疼痛（頭痛、牙痛、肌肉痛、關節痛）及退燒。',
+    indicationEN:'Relief of mild to moderate pain (headache, toothache, muscle pain, joint pain) and fever.',
+    usageZH:'成人每次 500–1000 mg，每 4–6 小時，每日上限 4000 mg。可空腹服用。',
+    usageEN:'Adults: 500–1000 mg every 4–6 hours; max 4000 mg/day. May be taken with or without food.',
+    adverseZH:'一般耐受性良好。過量可致嚴重肝損傷。罕見：過敏反應（皮疹）、血液異常。',
+    adverseEN:'Generally well tolerated. Overdose may cause severe hepatotoxicity. Rare: hypersensitivity reactions, blood dyscrasias.',
+    contraindicationZH:'對乙醯胺酚過敏者。嚴重肝功能不全者。',
+    contraindicationEN:'Hypersensitivity to acetaminophen. Severe hepatic impairment.',
+    precautionZH:'肝臟疾病患者及長期大量飲酒者應減量或避免使用。注意複方製劑中的累計劑量，避免超量。',
+    precautionEN:'Reduce dose or avoid in hepatic disease and chronic alcoholism. Monitor cumulative dose from all acetaminophen-containing products.',
+    interactionZH:'酒精（肝毒性↑）；Warfarin 長期高劑量可能使 INR 升高；Isoniazid（肝毒性↑）。',
+    interactionEN:'Alcohol (↑hepatotoxicity); Warfarin chronic high-dose (may ↑INR); Isoniazid (↑hepatotoxicity).',
+    storageZH:'室溫 15–30°C，避光防潮，置於兒童不易取得處。',
+    storageEN:'Store at 15–30°C; protect from light and moisture; keep out of reach of children.',
+  },
+  'ibuprofen':{
+    genericZH:'布洛芬（Ibuprofen）',
+    indicationZH:'緩解輕至中度疼痛（頭痛、經痛、牙痛、肌肉痛）、退燒及關節炎症狀改善。',
+    indicationEN:'Relief of mild to moderate pain (headache, dysmenorrhea, toothache, muscle pain), fever, and arthritis symptoms.',
+    usageZH:'成人每次 200–400 mg，每 4–6 小時，每日上限 1200 mg（OTC）或 2400 mg（處方）。隨餐或飯後服用以減少胃部不適。',
+    usageEN:'Adults: 200–400 mg every 4–6 hours; max 1200 mg/day (OTC) or 2400 mg/day (prescription). Take with food to reduce GI upset.',
+    adverseZH:'常見：胃部不適、噁心、消化不良。嚴重：胃腸出血、消化性潰瘍、腎功能損傷、心血管事件（長期高劑量）。',
+    adverseEN:'Common: GI upset, nausea, dyspepsia. Serious: GI bleeding, peptic ulcer, renal impairment, cardiovascular events (long-term high-dose).',
+    contraindicationZH:'對 NSAIDs 或 Aspirin 過敏；活動性消化性潰瘍或出血；嚴重心衰、腎衰、肝衰；妊娠 28 週後。',
+    contraindicationEN:'NSAID or aspirin allergy; active peptic ulcer or GI bleeding; severe cardiac, renal, or hepatic failure; pregnancy ≥28 weeks.',
+    precautionZH:'老年人、腎功能不全者、高血壓、心臟病患者慎用。避免長期使用。定期監測腎功能。',
+    precautionEN:'Use with caution in elderly, renal impairment, hypertension, and cardiac disease. Avoid long-term use. Monitor renal function periodically.',
+    interactionZH:'Aspirin（抗血小板作用相互干擾）；Warfarin（出血風險↑）；ACE 抑制劑（腎功能影響）；利尿劑（療效↓）；Lithium（血中濃度升高）。',
+    interactionEN:'Aspirin (antagonizes antiplatelet effect); Warfarin (↑bleeding risk); ACE inhibitors (↓antihypertensive effect, renal impairment); diuretics (↓efficacy); Lithium (↑serum levels).',
+    storageZH:'室溫 15–30°C，避光保存。',
+    storageEN:'Store at 15–30°C; protect from light.',
+  },
+  'diclofenac':{
+    genericZH:'雙氯芬酸（Diclofenac）',
+    indicationZH:'關節炎（骨關節炎、類風濕關節炎）、術後疼痛、急性痛風發作及各類疼痛症狀。',
+    indicationEN:'Arthritis (osteoarthritis, rheumatoid arthritis), postoperative pain, acute gout, and various pain syndromes.',
+    usageZH:'口服劑型成人每次 50 mg，每日 2–3 次；緩釋劑型每日 100 mg。隨餐服用。',
+    usageEN:'Oral (immediate-release): 50 mg 2–3 times daily; sustained-release: 100 mg once daily. Take with food.',
+    adverseZH:'胃腸不適（常見）、轉胺酶升高（需監測）、水腫。嚴重：消化性潰瘍、肝毒性、心血管事件。',
+    adverseEN:'GI discomfort (common), elevated liver enzymes (monitor), edema. Serious: peptic ulcer, hepatotoxicity, cardiovascular events.',
+    contraindicationZH:'對 NSAIDs 過敏；活動性消化性潰瘍；嚴重心衰、肝衰、腎衰；妊娠後期。',
+    contraindicationEN:'NSAID allergy; active peptic ulcer; severe cardiac, hepatic, or renal failure; late pregnancy.',
+    precautionZH:'定期監測肝功能（長期用藥）。老年人、腎功能不全者慎用。血壓監測。',
+    precautionEN:'Monitor liver function with long-term use. Use with caution in elderly and renal impairment. Monitor blood pressure.',
+    interactionZH:'Warfarin（出血風險↑）；Lithium（血中濃度升高）；降壓藥（療效可能降低）；Methotrexate（毒性增加）。',
+    interactionEN:'Warfarin (↑bleeding risk); Lithium (↑serum levels); antihypertensives (↓efficacy); Methotrexate (↑toxicity).',
+    storageZH:'室溫 15–30°C，避光防潮。',
+    storageEN:'Store at 15–30°C; protect from light and moisture.',
+  },
+  'celecoxib':{
+    genericZH:'塞來昔布（Celecoxib）',
+    indicationZH:'骨關節炎、類風濕關節炎、強直性脊椎炎的症狀緩解；急性疼痛（如術後）。',
+    indicationEN:'Symptom relief in osteoarthritis, rheumatoid arthritis, ankylosing spondylitis; acute pain (e.g., postoperative).',
+    usageZH:'骨關節炎每日 200 mg（單次或分兩次）；類風濕關節炎 100–200 mg 每日兩次。',
+    usageEN:'Osteoarthritis: 200 mg once daily or 100 mg twice daily. Rheumatoid arthritis: 100–200 mg twice daily.',
+    adverseZH:'胃腸不適（較傳統 NSAIDs 少）。嚴重：心血管事件（增加風險）、腎功能損傷、過敏反應。',
+    adverseEN:'GI discomfort (less than conventional NSAIDs). Serious: cardiovascular events (increased risk), renal impairment, hypersensitivity reactions.',
+    contraindicationZH:'磺醯胺類藥物過敏；NSAIDs 或 Aspirin 誘發的過敏；嚴重心衰；冠狀動脈繞道手術圍術期。',
+    contraindicationEN:'Sulfonamide allergy; NSAID or aspirin-induced allergy; severe heart failure; perioperative CABG surgery.',
+    precautionZH:'心血管高風險患者使用最低有效劑量、最短時間。定期監測血壓與腎功能。',
+    precautionEN:'Use the lowest effective dose for the shortest duration in high CV-risk patients. Monitor blood pressure and renal function periodically.',
+    interactionZH:'Warfarin（INR 升高風險）；ACE 抑制劑（腎功能影響）；Lithium（血中濃度升高）；Fluconazole（Celecoxib 血中濃度升高）。',
+    interactionEN:'Warfarin (↑INR risk); ACE inhibitors (renal impairment); Lithium (↑serum levels); Fluconazole (↑celecoxib levels).',
+    storageZH:'室溫 25°C 以下保存。',
+    storageEN:'Store below 25°C.',
+  },
+  'naproxen':{
+    genericZH:'萘普生（Naproxen）',
+    indicationZH:'關節炎、急性痛風、肌腱炎、滑囊炎及各類疼痛與退燒。',
+    indicationEN:'Arthritis, acute gout, tendinitis, bursitis, and general pain and fever.',
+    usageZH:'成人每次 250–500 mg，每 8–12 小時，每日上限 1250 mg。隨餐服用。',
+    usageEN:'Adults: 250–500 mg every 8–12 hours; max 1250 mg/day. Take with food.',
+    adverseZH:'胃腸不適、頭暈。嚴重：消化性潰瘍、腎功能損傷、心血管事件。',
+    adverseEN:'GI discomfort, dizziness. Serious: peptic ulcer, renal impairment, cardiovascular events.',
+    contraindicationZH:'NSAIDs 過敏；活動性消化性潰瘍；嚴重心衰、腎衰；妊娠後期。',
+    contraindicationEN:'NSAID allergy; active peptic ulcer; severe cardiac or renal failure; late pregnancy.',
+    precautionZH:'老年人慎用。腎功能不全患者調整劑量。長期用藥監測腎功能與血壓。',
+    precautionEN:'Use with caution in elderly. Adjust dose in renal impairment. Monitor renal function and blood pressure with long-term use.',
+    interactionZH:'與其他 NSAIDs、Warfarin、SSRIs 合用增加出血風險。',
+    interactionEN:'Concomitant use with other NSAIDs, Warfarin, or SSRIs increases bleeding risk.',
+    storageZH:'室溫 15–30°C，避光保存。',
+    storageEN:'Store at 15–30°C; protect from light.',
+  },
+  'aspirin':{
+    genericZH:'阿司匹林／乙醯水楊酸（Aspirin）',
+    indicationZH:'低劑量（75–100 mg）：抗血小板、預防心肌梗塞及缺血性腦中風。中高劑量：退燒止痛、抗炎。',
+    indicationEN:'Low-dose (75–100 mg): antiplatelet, prevention of MI and ischemic stroke. Higher doses: antipyretic, analgesic, anti-inflammatory.',
+    usageZH:'抗血板：每日 75–100 mg，飯後服用。解熱鎮痛：成人每次 500–1000 mg，每 4–6 小時。',
+    usageEN:'Antiplatelet: 75–100 mg once daily after meals. Antipyretic/analgesic: 500–1000 mg every 4–6 hours in adults.',
+    adverseZH:'胃腸不適（常見）、出血（胃腸道、顱內）。高劑量：Reye 症候群（兒童避免使用）、耳鳴。',
+    adverseEN:'GI upset (common), bleeding (GI, intracranial). High-dose: Reye\'s syndrome (avoid in children), tinnitus.',
+    contraindicationZH:'對 Aspirin 或 NSAIDs 過敏；活動性消化性潰瘍；出血傾向；兒童（Reye 症候群風險）；妊娠後期。',
+    contraindicationEN:'Aspirin or NSAID allergy; active peptic ulcer; bleeding disorders; children (Reye\'s syndrome risk); late pregnancy.',
+    precautionZH:'長期低劑量使用前評估出血風險。術前可能需停藥。老年人消化道保護（考慮 PPI 合用）。',
+    precautionEN:'Assess bleeding risk before initiating long-term low-dose therapy. May need to hold before surgery. Consider PPI co-therapy in elderly for GI protection.',
+    interactionZH:'Warfarin（出血風險↑）；NSAIDs（相互干擾、胃腸不良反應↑）；Heparin（出血風險↑）；Methotrexate（毒性↑）。',
+    interactionEN:'Warfarin (↑bleeding risk); NSAIDs (mutual antagonism, ↑GI ADRs); Heparin (↑bleeding risk); Methotrexate (↑toxicity).',
+    storageZH:'室溫 15–30°C，乾燥保存，避免受潮分解。',
+    storageEN:'Store at 15–30°C in a dry place; protect from moisture to prevent decomposition.',
+  },
+  'amoxicillin':{
+    genericZH:'阿莫西林（Amoxicillin）',
+    indicationZH:'中耳炎、鼻竇炎、咽炎、肺炎、泌尿道感染、Hp 根除（合併療法）等細菌感染。',
+    indicationEN:'Otitis media, sinusitis, pharyngitis, pneumonia, UTIs, H. pylori eradication (combination therapy), and other bacterial infections.',
+    usageZH:'成人一般 250–500 mg 每 8 小時或 500–875 mg 每 12 小時。療程 7–14 天。可與食物同服。',
+    usageEN:'Adults: 250–500 mg every 8 hours or 500–875 mg every 12 hours. Course 7–14 days. May be taken with food.',
+    adverseZH:'常見：腹瀉、噁心、皮疹。嚴重：過敏反應（包括 Anaphylaxis）、C. difficile 腸炎、肝毒性（罕見）。',
+    adverseEN:'Common: diarrhea, nausea, rash. Serious: hypersensitivity reactions (including anaphylaxis), C. difficile colitis, hepatotoxicity (rare).',
+    contraindicationZH:'對 Penicillin 或 β-lactam 類抗生素嚴重過敏者（如過敏性休克病史）。',
+    contraindicationEN:'Severe hypersensitivity to penicillin or β-lactam antibiotics (e.g., history of anaphylaxis).',
+    precautionZH:'Penicillin 輕度過敏史者謹慎（有交叉過敏風險）。腎功能不全者調整劑量。',
+    precautionEN:'Use with caution in mild penicillin allergy (cross-reactivity risk). Adjust dose in renal impairment.',
+    interactionZH:'Warfarin（INR 可能升高，需監測）；口服避孕藥（療效略降，建議備用避孕措施）；Methotrexate（腎排除↓）。',
+    interactionEN:'Warfarin (↑INR, monitor); oral contraceptives (slightly ↓efficacy, use backup method); Methotrexate (↓renal clearance).',
+    storageZH:'膠囊室溫保存；懸浮液調配後冷藏（2–8°C），14 天內使用完畢。',
+    storageEN:'Capsules: store at room temperature. Suspension: refrigerate (2–8°C) after reconstitution; use within 14 days.',
+  },
+  'azithromycin':{
+    genericZH:'阿奇黴素（Azithromycin）',
+    indicationZH:'社區性肺炎、咽喉炎、皮膚軟組織感染、非淋菌性尿道炎、砂眼披衣菌感染。',
+    indicationEN:'Community-acquired pneumonia, pharyngitis, skin and soft tissue infections, non-gonococcal urethritis, chlamydial infection.',
+    usageZH:'成人首日 500 mg，第 2–5 日每日 250 mg；或單次 1000 mg（非淋菌性尿道炎）。可空腹或隨餐服用。',
+    usageEN:'Adults: 500 mg on day 1, then 250 mg daily on days 2–5; or 1000 mg single dose (non-gonococcal urethritis). May be taken with or without food.',
+    adverseZH:'常見：腹瀉、噁心、腹痛。嚴重：QT 延長（心律不整風險）、C. difficile 腸炎、肝毒性。',
+    adverseEN:'Common: diarrhea, nausea, abdominal pain. Serious: QT prolongation (arrhythmia risk), C. difficile colitis, hepatotoxicity.',
+    contraindicationZH:'對 Azithromycin 或其他大環內酯類過敏；已知 QT 延長或低血鉀患者慎用。',
+    contraindicationEN:'Hypersensitivity to azithromycin or other macrolides; known QT prolongation or hypokalemia (use with caution).',
+    precautionZH:'心臟病（QT 延長）患者特別謹慎。避免合用其他 QT 延長藥物。',
+    precautionEN:'Use with particular caution in cardiac patients (QT prolongation risk). Avoid combination with other QT-prolonging drugs.',
+    interactionZH:'Antacids（吸收↓，間隔 2 小時）；QT 延長藥物（如 Amiodarone、Haloperidol），風險加成；Warfarin（INR 升高）。',
+    interactionEN:'Antacids (↓absorption, separate by 2 hours); QT-prolonging drugs (e.g., Amiodarone, Haloperidol — additive risk); Warfarin (↑INR).',
+    storageZH:'室溫 15–30°C 保存。懸浮液調配後冷藏，10 天內使用。',
+    storageEN:'Store at 15–30°C. Suspension: refrigerate after reconstitution; use within 10 days.',
+  },
+  'ciprofloxacin':{
+    genericZH:'環丙沙星（Ciprofloxacin）',
+    indicationZH:'泌尿道感染（含複雜型）、腸胃炎、骨關節感染、肺炎、皮膚感染及腸道沙門氏菌感染。',
+    indicationEN:'UTIs (including complicated), GI infections, bone and joint infections, pneumonia, skin infections, enteric Salmonella.',
+    usageZH:'成人 250–750 mg 每 12 小時。不應與含鈣、鎂、鋁的制酸劑、鐵劑同時服用（間隔 2 小時）。',
+    usageEN:'Adults: 250–750 mg every 12 hours. Do not take simultaneously with calcium-, magnesium-, or aluminum-containing antacids or iron supplements (separate by 2 hours).',
+    adverseZH:'噁心、腹瀉、頭痛。嚴重：肌腱炎／斷裂（尤其老年、腎衰、合用類固醇者）、QT 延長、周邊神經病變。',
+    adverseEN:'Nausea, diarrhea, headache. Serious: tendinitis/tendon rupture (especially elderly, renal failure, corticosteroid users), QT prolongation, peripheral neuropathy.',
+    contraindicationZH:'對喹諾酮類藥物過敏；18 歲以下（除特定適應症外）；妊娠及哺乳。',
+    contraindicationEN:'Hypersensitivity to quinolones; children under 18 (except specific indications); pregnancy and breastfeeding.',
+    precautionZH:'年長者及腎功能不全者調整劑量。如出現肌腱疼痛應立即停藥。避免強烈日曬（光敏感）。',
+    precautionEN:'Adjust dose in elderly and renal impairment. Discontinue immediately if tendon pain occurs. Avoid intense sun exposure (photosensitivity).',
+    interactionZH:'Antacids、鐵劑、鋅（吸收↓）；Warfarin（INR 升高）；Theophylline（血中濃度升高、毒性）；NSAIDs（癲癇閾值降低）。',
+    interactionEN:'Antacids, iron, zinc (↓absorption); Warfarin (↑INR); Theophylline (↑serum levels, toxicity); NSAIDs (↓seizure threshold).',
+    storageZH:'室溫 15–30°C，避光保存。',
+    storageEN:'Store at 15–30°C; protect from light.',
+  },
+  'metronidazole':{
+    genericZH:'甲硝唑（Metronidazole）',
+    indicationZH:'厭氧菌感染（腹腔、婦科、骨盆腔炎）；C. difficile 腸炎；寄生蟲感染（阿米巴病、滴蟲病）；H. pylori 根除。',
+    indicationEN:'Anaerobic bacterial infections (abdominal, gynecologic, pelvic); C. difficile colitis; parasitic infections (amebiasis, trichomoniasis); H. pylori eradication.',
+    usageZH:'成人 250–500 mg 每 8 小時（口服）。療程視感染種類。隨餐服用以減少噁心。',
+    usageEN:'Adults: 250–500 mg every 8 hours (oral). Duration depends on infection type. Take with food to reduce nausea.',
+    adverseZH:'噁心、金屬異味感、頭痛（常見）。長期使用：周邊神經病變、癲癇。',
+    adverseEN:'Common: nausea, metallic taste, headache. Long-term: peripheral neuropathy, seizures.',
+    contraindicationZH:'對 Metronidazole 或硝基咪唑類藥物過敏；妊娠早期（前 3 個月）；與酒精合用。',
+    contraindicationEN:'Hypersensitivity to metronidazole or nitroimidazoles; first trimester of pregnancy; concurrent alcohol use.',
+    precautionZH:'治療期間及療程結束後 48 小時禁酒（Disulfiram 樣反應）。嚴重肝臟疾病者減量。',
+    precautionEN:'Avoid alcohol during treatment and for 48 hours after completing the course (disulfiram-like reaction). Reduce dose in severe hepatic disease.',
+    interactionZH:'酒精（嚴重 Disulfiram 樣反應：嘔吐、潮紅）；Warfarin（INR 大幅升高）；Lithium（腎毒性↑）；Phenytoin（血中濃度改變）。',
+    interactionEN:'Alcohol (severe disulfiram-like reaction: vomiting, flushing); Warfarin (markedly ↑INR); Lithium (↑nephrotoxicity); Phenytoin (altered serum levels).',
+    storageZH:'室溫 15–30°C，避光保存。',
+    storageEN:'Store at 15–30°C; protect from light.',
+  },
+  'amlodipine':{
+    genericZH:'氨氯地平（Amlodipine）',
+    indicationZH:'高血壓（可單用或合用）；穩定型心絞痛及血管痙攣性心絞痛（Prinzmetal）。',
+    indicationEN:'Hypertension (alone or in combination); stable angina and vasospastic angina (Prinzmetal\'s).',
+    usageZH:'初始 5 mg 每日一次；依療效調整至 10 mg/日。降壓效果於 7–14 天後達穩態。可在任何時間服用。',
+    usageEN:'Start at 5 mg once daily; adjust to 10 mg/day as needed. Antihypertensive effect reaches steady state after 7–14 days. May be taken at any time.',
+    adverseZH:'踝部水腫（常見，尤其高劑量）、潮紅、頭痛、頭暈。心跳加速（反射性）。嚴重不良反應少見。',
+    adverseEN:'Ankle edema (common, especially at high doses), flushing, headache, dizziness. Reflex tachycardia. Serious adverse effects are rare.',
+    contraindicationZH:'對二氫吡啶類 Ca²⁺ 拮抗劑過敏；嚴重主動脈瓣狹窄。',
+    contraindicationEN:'Hypersensitivity to dihydropyridine calcium channel blockers; severe aortic stenosis.',
+    precautionZH:'嚴重肝功能不全者從低劑量起始。老年人起始 2.5 mg。心衰患者謹慎（雖較安全）。',
+    precautionEN:'Start at low dose in severe hepatic impairment. Start at 2.5 mg in elderly. Use with caution in heart failure.',
+    interactionZH:'CYP3A4 抑制劑如 Clarithromycin、Itraconazole（Amlodipine 血中濃度升高）；Simvastatin（肌肉毒性↑，Simvastatin 限 20 mg/日）。',
+    interactionEN:'CYP3A4 inhibitors (Clarithromycin, Itraconazole: ↑amlodipine levels); Simvastatin (↑myotoxicity — limit simvastatin to 20 mg/day).',
+    storageZH:'室溫 15–30°C，避光保存。',
+    storageEN:'Store at 15–30°C; protect from light.',
+  },
+  'losartan':{
+    genericZH:'氯沙坦（Losartan）',
+    indicationZH:'高血壓；高血壓合併第二型糖尿病之腎病變（延緩進展）；心衰（對 ACE 抑制劑不耐受者）。',
+    indicationEN:'Hypertension; type 2 diabetic nephropathy (to slow progression); heart failure (in patients intolerant to ACE inhibitors).',
+    usageZH:'初始 50 mg 每日一次；依療效調整至 100 mg/日。可隨餐或空腹服用。',
+    usageEN:'Start at 50 mg once daily; adjust to 100 mg/day as needed. May be taken with or without food.',
+    adverseZH:'頭暈（初期）、高血鉀（腎功能不全或合用 K⁺ 節省劑）。比 ACE 抑制劑較少引起乾咳。',
+    adverseEN:'Dizziness (initial), hyperkalemia (in renal impairment or with K+-sparing agents). Less likely to cause dry cough than ACE inhibitors.',
+    contraindicationZH:'對 Losartan 過敏；妊娠（第 2–3 孕期）；嚴重肝功能不全；合用 Aliskiren（糖尿病患者）。',
+    contraindicationEN:'Hypersensitivity to losartan; pregnancy (2nd–3rd trimester); severe hepatic impairment; concomitant aliskiren in diabetic patients.',
+    precautionZH:'啟動治療前或治療後監測腎功能、血鉀、血壓。腎動脈狹窄患者慎用。',
+    precautionEN:'Monitor renal function, serum potassium, and blood pressure before and during treatment. Use with caution in renal artery stenosis.',
+    interactionZH:'K⁺ 節省性利尿劑、K⁺ 補充劑（高血鉀↑）；NSAIDs（降壓療效↓、腎功能↓）；Lithium（血中濃度升高）。',
+    interactionEN:'K+-sparing diuretics, potassium supplements (↑hyperkalemia risk); NSAIDs (↓antihypertensive effect, renal impairment); Lithium (↑serum levels).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'lisinopril':{
+    genericZH:'賴諾普利（Lisinopril）',
+    indicationZH:'高血壓、心臟衰竭（輔助治療）、急性心肌梗塞後心臟保護、糖尿病腎病變。',
+    indicationEN:'Hypertension, heart failure (adjunct), cardioprotection after acute MI, diabetic nephropathy.',
+    usageZH:'高血壓：初始 5–10 mg 每日一次；維持 20–40 mg。心衰：2.5 mg 起始，緩慢增量。',
+    usageEN:'Hypertension: start at 5–10 mg once daily; maintenance 20–40 mg. Heart failure: start at 2.5 mg, titrate slowly.',
+    adverseZH:'乾咳（常見，10–15%）、頭暈、高血鉀。嚴重：血管性水腫（立即停藥）、腎功能惡化（腎動脈狹窄）。',
+    adverseEN:'Dry cough (common, 10–15%), dizziness, hyperkalemia. Serious: angioedema (discontinue immediately), renal deterioration (renal artery stenosis).',
+    contraindicationZH:'對 ACE 抑制劑過敏；有血管性水腫病史；妊娠；合用 Aliskiren（腎功能不全或糖尿病）。',
+    contraindicationEN:'ACE inhibitor hypersensitivity; history of angioedema; pregnancy; concomitant aliskiren in renal impairment or diabetes.',
+    precautionZH:'首劑可能低血壓（特別是脫水患者、心衰）。定期監測腎功能與血鉀。',
+    precautionEN:'First-dose hypotension risk (especially in dehydration or heart failure). Monitor renal function and serum potassium regularly.',
+    interactionZH:'K⁺ 節省性利尿劑（高血鉀）；NSAIDs（降壓療效↓）；Lithium（血中濃度↑）；ARBs 或 Aliskiren（不建議三重阻斷）。',
+    interactionEN:'K+-sparing diuretics (hyperkalemia); NSAIDs (↓antihypertensive effect); Lithium (↑serum levels); ARBs or aliskiren (triple blockade not recommended).',
+    storageZH:'室溫 15–30°C，避濕保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'enalapril':{
+    genericZH:'依那普利（Enalapril）',
+    indicationZH:'高血壓、心臟衰竭、無症狀左心室功能障礙、急性心肌梗塞後。',
+    indicationEN:'Hypertension, heart failure, asymptomatic left ventricular dysfunction, post-acute MI.',
+    usageZH:'高血壓：初始 5 mg，每日 1–2 次；維持 10–40 mg/日。腎功能不全者調整劑量。',
+    usageEN:'Hypertension: start at 5 mg once or twice daily; maintenance 10–40 mg/day. Adjust dose in renal impairment.',
+    adverseZH:'乾咳、頭暈、疲勞、高血鉀。嚴重：血管性水腫、腎功能惡化、低血壓（首劑）。',
+    adverseEN:'Dry cough, dizziness, fatigue, hyperkalemia. Serious: angioedema, renal deterioration, first-dose hypotension.',
+    contraindicationZH:'對 ACE 抑制劑過敏；血管性水腫病史；妊娠。',
+    contraindicationEN:'ACE inhibitor hypersensitivity; history of angioedema; pregnancy.',
+    precautionZH:'首劑低血壓風險（脫水患者）。監測腎功能、血鉀。',
+    precautionEN:'First-dose hypotension risk (especially in dehydration). Monitor renal function and serum potassium.',
+    interactionZH:'與 Losartan 相同類別交互作用。K⁺ 節省劑（高血鉀）；NSAIDs（療效↓）。',
+    interactionEN:'Same drug interactions as Losartan class. K+-sparing agents (hyperkalemia); NSAIDs (↓efficacy).',
+    storageZH:'室溫 30°C 以下，避光保存。',
+    storageEN:'Store below 30°C; protect from light.',
+  },
+  'metoprolol':{
+    genericZH:'美托洛爾（Metoprolol）',
+    indicationZH:'高血壓、心絞痛、急性心肌梗塞後保護、心衰（Metoprolol succinate）、心律不整（室上心搏過速）。',
+    indicationEN:'Hypertension, angina, post-MI cardioprotection, heart failure (metoprolol succinate), supraventricular tachycardia.',
+    usageZH:'高血壓：tartrate 100–200 mg/日，分次服；succinate 25–200 mg 每日一次。隨餐服用。',
+    usageEN:'Hypertension: tartrate 100–200 mg/day in divided doses; succinate 25–200 mg once daily. Take with food.',
+    adverseZH:'疲勞、肢端發冷、心跳變慢、性功能障礙。嚴重：支氣管痙攣（氣喘患者）、心衰惡化（快速加量時）。',
+    adverseEN:'Fatigue, cold extremities, bradycardia, sexual dysfunction. Serious: bronchospasm (in asthma), worsening heart failure (if dose increased too rapidly).',
+    contraindicationZH:'嚴重心搏徐緩（<45 bpm）、病竇症候群、III 度房室阻斷；失代償心衰；嚴重外周動脈疾病。',
+    contraindicationEN:'Severe bradycardia (<45 bpm), sick sinus syndrome, 3rd-degree AV block; decompensated heart failure; severe peripheral arterial disease.',
+    precautionZH:'糖尿病患者低血糖症狀可能被遮蓋。氣喘及 COPD 患者謹慎（選擇性 β1 但高劑量時特異性降低）。停藥應緩慢逐步減量。',
+    precautionEN:'May mask hypoglycemia symptoms in diabetic patients. Use with caution in asthma/COPD (β1-selectivity lost at high doses). Taper gradually on discontinuation.',
+    interactionZH:'Verapamil／Diltiazem（心搏徐緩、心臟阻斷風險↑）；Digoxin（心搏徐緩）；CYP2D6 抑制劑如 Paroxetine（Metoprolol 血中濃度↑）。',
+    interactionEN:'Verapamil/Diltiazem (↑bradycardia and heart block risk); Digoxin (bradycardia); CYP2D6 inhibitors (Paroxetine: ↑metoprolol levels).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'bisoprolol':{
+    genericZH:'比索洛爾（Bisoprolol）',
+    indicationZH:'高血壓；穩定型慢性心衰（HFrEF，EF ≤ 40%，與 ACEi/ARB 合用）；心絞痛。',
+    indicationEN:'Hypertension; stable chronic heart failure (HFrEF, EF ≤ 40%, with ACEi/ARB); angina.',
+    usageZH:'高血壓：5–20 mg 每日一次。心衰：從 1.25 mg 起始，每 1–2 週倍增至目標 10 mg/日。',
+    usageEN:'Hypertension: 5–20 mg once daily. Heart failure: start at 1.25 mg; double every 1–2 weeks to target 10 mg/day.',
+    adverseZH:'疲勞、肢端發冷、頭暈、心跳變慢。',
+    adverseEN:'Fatigue, cold extremities, dizziness, bradycardia.',
+    contraindicationZH:'急性失代償心衰；嚴重心搏徐緩；嚴重周邊動脈疾病；未控制的支氣管痙攣。',
+    contraindicationEN:'Acute decompensated heart failure; severe bradycardia; severe peripheral arterial disease; uncontrolled bronchospasm.',
+    precautionZH:'同 Metoprolol。心衰患者劑量應緩慢增加。不可突然停藥。',
+    precautionEN:'Same as Metoprolol. Increase dose slowly in heart failure patients. Do not stop abruptly.',
+    interactionZH:'Verapamil、Diltiazem（傳導阻斷）；胰島素（低血糖症狀遮蓋）。',
+    interactionEN:'Verapamil, Diltiazem (conduction block); insulin (masking of hypoglycemia symptoms).',
+    storageZH:'室溫 25°C 以下保存。',
+    storageEN:'Store below 25°C.',
+  },
+  'carvedilol':{
+    genericZH:'卡維地洛（Carvedilol）',
+    indicationZH:'慢性心衰（HFrEF）；高血壓；急性心肌梗塞後左心室功能障礙。',
+    indicationEN:'Chronic heart failure (HFrEF); hypertension; left ventricular dysfunction after acute MI.',
+    usageZH:'心衰：從 3.125 mg 每日兩次起始，每 2 週倍增至 25–50 mg/日（分兩次）。隨餐服用。',
+    usageEN:'Heart failure: start at 3.125 mg twice daily; double every 2 weeks up to 25–50 mg/day (in divided doses). Take with food.',
+    adverseZH:'頭暈、疲勞、低血壓（尤其首劑）、心搏徐緩、體重增加、水腫。',
+    adverseEN:'Dizziness, fatigue, hypotension (especially first dose), bradycardia, weight gain, edema.',
+    contraindicationZH:'急性失代償心衰；嚴重心搏徐緩；肝功能不全；嚴重支氣管痙攣性疾病。',
+    contraindicationEN:'Acute decompensated heart failure; severe bradycardia; hepatic impairment; severe bronchospastic disease.',
+    precautionZH:'首劑低血壓：建議隨餐服用、坐姿服藥。劑量緩慢增加。監測心率與血壓。',
+    precautionEN:'First-dose hypotension: take with food and in a seated position. Increase dose gradually. Monitor heart rate and blood pressure.',
+    interactionZH:'Amiodarone（心率極度減慢）；Digoxin（血中濃度升高）；Cyclosporin（濃度升高）；Rifampicin（Carvedilol 濃度↓）。',
+    interactionEN:'Amiodarone (extreme bradycardia); Digoxin (↑serum levels); Cyclosporin (↑cyclosporin levels); Rifampicin (↓carvedilol levels).',
+    storageZH:'室溫 25°C 以下，乾燥保存。',
+    storageEN:'Store below 25°C in a dry place.',
+  },
+  'atorvastatin':{
+    genericZH:'阿托伐他汀（Atorvastatin）',
+    indicationZH:'高膽固醇血症（原發性及混合型高脂血症）；心血管疾病高風險患者的心血管事件一級與二級預防。',
+    indicationEN:'Primary and mixed hyperlipidemia; primary and secondary prevention of cardiovascular events in high-risk patients.',
+    usageZH:'成人 10–80 mg 每日一次，任何時間服用均可。可與食物同服或空腹。',
+    usageEN:'Adults: 10–80 mg once daily at any time. May be taken with or without food.',
+    adverseZH:'肌肉痠痛、疲勞（常見）。嚴重：肌病變（Myopathy）、橫紋肌溶解症（罕見）、肝轉胺酶升高、新發糖尿病（略增）。',
+    adverseEN:'Muscle aches, fatigue (common). Serious: myopathy, rhabdomyolysis (rare), elevated liver transaminases, slightly increased risk of new-onset diabetes.',
+    contraindicationZH:'活動性肝臟疾病或不明原因轉胺酶升高 ≥3×ULN；妊娠及哺乳。',
+    contraindicationEN:'Active liver disease or unexplained transaminase elevation ≥3×ULN; pregnancy and breastfeeding.',
+    precautionZH:'出現肌肉疼痛、無力應立即就診（CK 監測）。避免大量葡萄柚汁。高強度藥物交互作用時降低劑量。',
+    precautionEN:'Seek medical attention immediately for muscle pain or weakness (monitor CK). Avoid large quantities of grapefruit juice. Reduce dose with significant drug interactions.',
+    interactionZH:'CYP3A4 強抑制劑（Itraconazole、Clarithromycin：血中濃度大幅↑）；Amlodipine（肌肉毒性↑，限 40 mg）；Fibrates（Gemfibrozil：橫紋肌溶解風險↑）。',
+    interactionEN:'Strong CYP3A4 inhibitors (Itraconazole, Clarithromycin: markedly ↑levels); Amlodipine (↑myotoxicity, limit atorvastatin to 40 mg); Fibrates (Gemfibrozil: ↑rhabdomyolysis risk).',
+    storageZH:'室溫 20–25°C，乾燥保存。',
+    storageEN:'Store at 20–25°C; protect from moisture.',
+  },
+  'simvastatin':{
+    genericZH:'辛伐他汀（Simvastatin）',
+    indicationZH:'高膽固醇血症、家族性高膽固醇血症；心血管疾病預防。',
+    indicationEN:'Hyperlipidemia, familial hypercholesterolemia; cardiovascular disease prevention.',
+    usageZH:'成人 10–40 mg，每日一次，晚間服用（肝臟膽固醇合成在夜間增加）。',
+    usageEN:'Adults: 10–40 mg once daily in the evening (hepatic cholesterol synthesis peaks at night).',
+    adverseZH:'肌肉痠痛、頭痛。嚴重：橫紋肌溶解症（合用特定藥物時風險顯著增加）、肝毒性。',
+    adverseEN:'Muscle aches, headache. Serious: rhabdomyolysis (risk markedly increased with certain drug combinations), hepatotoxicity.',
+    contraindicationZH:'活動性肝臟疾病；妊娠及哺乳；合用強 CYP3A4 抑制劑（Itraconazole、HIV 蛋白酶抑制劑等）。',
+    contraindicationEN:'Active liver disease; pregnancy and breastfeeding; concomitant strong CYP3A4 inhibitors (Itraconazole, HIV protease inhibitors).',
+    precautionZH:'避免大量葡萄柚汁。與 Amlodipine 合用上限 20 mg；與 Amiodarone 合用上限 20 mg。',
+    precautionEN:'Avoid large quantities of grapefruit juice. With Amlodipine: limit simvastatin to 20 mg/day; with Amiodarone: limit to 20 mg/day.',
+    interactionZH:'Amlodipine（肌肉毒性↑，Simvastatin 限 20 mg/日）；Gemfibrozil（嚴重禁忌）；CYP3A4 強抑制劑（血中濃度大幅升高，禁忌合用）。',
+    interactionEN:'Amlodipine (↑myotoxicity, limit simvastatin to 20 mg/day); Gemfibrozil (seriously contraindicated); strong CYP3A4 inhibitors (markedly ↑levels — contraindicated).',
+    storageZH:'室溫 5–30°C，乾燥避光。',
+    storageEN:'Store at 5–30°C; protect from light and moisture.',
+  },
+  'rosuvastatin':{
+    genericZH:'瑞舒伐他汀（Rosuvastatin）',
+    indicationZH:'高膽固醇血症；心血管疾病預防；家族性高膽固醇血症（含雜合子及純合子型）。',
+    indicationEN:'Hyperlipidemia; cardiovascular prevention; familial hypercholesterolemia (including homozygous and heterozygous).',
+    usageZH:'成人 5–40 mg 每日一次，任何時間服用。亞洲人一般從 5 mg 起始（PK 差異）。',
+    usageEN:'Adults: 5–40 mg once daily at any time. Asian patients generally start at 5 mg (pharmacokinetic differences).',
+    adverseZH:'肌肉痠痛、頭痛、腹部不適。嚴重：橫紋肌溶解症（高劑量、特別是 40 mg）、蛋白尿（監測）。',
+    adverseEN:'Muscle aches, headache, abdominal discomfort. Serious: rhabdomyolysis (at high doses, especially 40 mg), proteinuria (monitor).',
+    contraindicationZH:'活動性肝臟疾病；eGFR < 30（40 mg 劑量禁用）；妊娠及哺乳。',
+    contraindicationEN:'Active liver disease; eGFR < 30 (40 mg dose contraindicated); pregnancy and breastfeeding.',
+    precautionZH:'腎功能不全、甲狀腺功能低下者肌肉毒性風險增加。40 mg 劑量僅限無法達到 LDL 目標者。',
+    precautionEN:'Increased myotoxicity risk in renal impairment and hypothyroidism. 40 mg dose reserved for patients unable to reach LDL target on lower doses.',
+    interactionZH:'Cyclosporin（大幅升高血中濃度，限 5 mg）；Gemfibrozil（濃度升高 1.9 倍）；Antacids（含 Mg/Al，吸收↓）。',
+    interactionEN:'Cyclosporin (markedly ↑levels, limit to 5 mg/day); Gemfibrozil (1.9× ↑levels); antacids containing Mg/Al (↓absorption).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'metformin':{
+    genericZH:'二甲雙胍（Metformin）',
+    indicationZH:'第二型糖尿病的第一線口服降血糖藥（特別是體重過重患者）；與其他降血糖藥合用。',
+    indicationEN:'First-line oral antidiabetic for type 2 diabetes (especially in overweight patients); use in combination with other antidiabetics.',
+    usageZH:'初始 500 mg 每日兩次或 850 mg 每日一次，隨餐服用。依耐受性與血糖控制逐步調整，最大劑量 2550 mg/日。',
+    usageEN:'Start at 500 mg twice daily or 850 mg once daily with food. Titrate gradually based on tolerability and glycemic control; max 2550 mg/day.',
+    adverseZH:'常見：噁心、腹瀉、腹脹、金屬異味感（初期，隨餐服用可減少）。嚴重（罕見）：乳酸酸中毒（腎功能嚴重不全時）。',
+    adverseEN:'Common: nausea, diarrhea, bloating, metallic taste (especially initially; reduced by taking with food). Rare but serious: lactic acidosis (in severe renal impairment).',
+    contraindicationZH:'eGFR < 30 mL/min；急性代謝性酸中毒（包括糖尿病酮症酸中毒）；碘造影劑使用前後暫停（eGFR 30–60 者）。',
+    contraindicationEN:'eGFR < 30 mL/min; acute metabolic acidosis (including diabetic ketoacidosis); hold before iodinated contrast agents in patients with eGFR 30–60.',
+    precautionZH:'定期監測腎功能（至少每年）。外科手術或禁食前暫停。維生素 B12 長期服用可能使血中濃度降低。',
+    precautionEN:'Monitor renal function at least annually. Hold before surgery or fasting. Long-term use may reduce vitamin B12 levels.',
+    interactionZH:'酒精（乳酸酸中毒風險↑）；含碘顯影劑（暫停 Metformin）；Cimetidine（血中濃度升高）；Topiramate（乳酸酸中毒風險↑）。',
+    interactionEN:'Alcohol (↑lactic acidosis risk); iodinated contrast media (hold metformin); Cimetidine (↑metformin levels); Topiramate (↑lactic acidosis risk).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'glipizide':{
+    genericZH:'格列吡嗪（Glipizide）',
+    indicationZH:'第二型糖尿病（飲食控制不佳時的輔助治療）。',
+    indicationEN:'Type 2 diabetes mellitus (as adjunct when diet alone is inadequate).',
+    usageZH:'初始 5 mg，餐前 30 分鐘服用；依血糖調整，最大 40 mg/日（>15 mg 分次服）。',
+    usageEN:'Start at 5 mg 30 minutes before meals; adjust to 5–40 mg/day based on blood glucose (doses >15 mg in divided doses).',
+    adverseZH:'低血糖（最重要不良反應）、體重增加、噁心、頭暈。',
+    adverseEN:'Hypoglycemia (most important ADR), weight gain, nausea, dizziness.',
+    contraindicationZH:'第一型糖尿病；糖尿病酮症酸中毒；磺醯脲類藥物過敏；嚴重腎衰、肝衰。',
+    contraindicationEN:'Type 1 diabetes; diabetic ketoacidosis; sulfonylurea hypersensitivity; severe renal or hepatic failure.',
+    precautionZH:'老年人、腎功能不全者低血糖風險高，慎用或減量。不可跳過正餐。',
+    precautionEN:'Elderly and renally impaired patients are at high risk for hypoglycemia — use with caution or reduce dose. Never skip meals.',
+    interactionZH:'Fluconazole（低血糖↑）；β 阻斷劑（遮蓋低血糖症狀）；NSAIDs（低血糖↑）；Rifampicin（效果↓）。',
+    interactionEN:'Fluconazole (↑hypoglycemia risk); β-blockers (mask hypoglycemia symptoms); NSAIDs (↑hypoglycemia); Rifampicin (↓efficacy).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'sitagliptin':{
+    genericZH:'西格列汀（Sitagliptin）',
+    indicationZH:'第二型糖尿病（單用或合用 Metformin、磺醯脲類等）。',
+    indicationEN:'Type 2 diabetes mellitus (alone or in combination with Metformin, sulfonylureas, etc.).',
+    usageZH:'100 mg 每日一次，腎功能不全者調整劑量（eGFR 30–45：50 mg；< 30：25 mg）。可與食物同服。',
+    usageEN:'100 mg once daily; adjust for renal impairment (eGFR 30–45: 50 mg; <30: 25 mg). May be taken with or without food.',
+    adverseZH:'鼻咽炎、頭痛（常見）。罕見：急性胰臟炎（就醫監測腹痛）、關節痛。',
+    adverseEN:'Nasopharyngitis, headache (common). Rare: acute pancreatitis (seek attention for abdominal pain), arthralgia.',
+    contraindicationZH:'第一型糖尿病；糖尿病酮症酸中毒；對 Sitagliptin 嚴重過敏（含過敏性休克）。',
+    contraindicationEN:'Type 1 diabetes; diabetic ketoacidosis; severe hypersensitivity to sitagliptin (including anaphylaxis).',
+    precautionZH:'有胰臟炎病史者謹慎。心衰患者謹慎（部分 DPP-4 抑制劑相關）。',
+    precautionEN:'Use with caution in patients with a history of pancreatitis. Use with caution in heart failure (DPP-4 inhibitor class concern).',
+    interactionZH:'與磺醯脲類合用時低血糖風險增加，磺醯脲類應減量。Digoxin 血中濃度略升高。',
+    interactionEN:'When combined with sulfonylureas, ↑hypoglycemia risk — reduce sulfonylurea dose. Digoxin levels may be slightly elevated.',
+    storageZH:'室溫 20°C 以下，乾燥保存。',
+    storageEN:'Store below 20°C; protect from moisture.',
+  },
+  'omeprazole':{
+    genericZH:'奧美拉唑（Omeprazole）',
+    indicationZH:'胃食道逆流（GERD）、消化性潰瘍（含 H. pylori 根除）、Zollinger-Ellison 症候群、預防 NSAIDs 相關潰瘍。',
+    indicationEN:'GERD, peptic ulcer (including H. pylori eradication), Zollinger-Ellison syndrome, prevention of NSAID-associated ulcers.',
+    usageZH:'GERD：20–40 mg 每日一次，餐前 30–60 分鐘服用，療程 4–8 週。',
+    usageEN:'GERD: 20–40 mg once daily, 30–60 minutes before meals; course 4–8 weeks.',
+    adverseZH:'頭痛、腹瀉、噁心（常見）。長期使用：低鎂血症、維生素 B12 吸收↓、骨折風險略增、C. difficile 腸炎風險↑。',
+    adverseEN:'Headache, diarrhea, nausea (common). Long-term: hypomagnesemia, ↓vitamin B12 absorption, slightly ↑fracture risk, ↑C. difficile risk.',
+    contraindicationZH:'對 PPI 或 Benzimidazole 類過敏；合用 Nelfinavir（HIV 蛋白酶抑制劑）。',
+    contraindicationEN:'Hypersensitivity to PPIs or benzimidazoles; concomitant Nelfinavir (HIV protease inhibitor).',
+    precautionZH:'應使用最低有效劑量及最短療程。長期使用需定期評估必要性。不應掩蓋惡性疾病症狀。',
+    precautionEN:'Use the lowest effective dose for the shortest necessary duration. Regularly re-evaluate need for long-term use. Do not mask symptoms of potential malignancy.',
+    interactionZH:'Clopidogrel（CYP2C19 競爭，抗血板療效可能↓，偏好使用 Pantoprazole）；Methotrexate（清除↓）；Atazanavir（吸收↓）。',
+    interactionEN:'Clopidogrel (CYP2C19 competition, may ↓antiplatelet efficacy — prefer Pantoprazole); Methotrexate (↓clearance); Atazanavir (↓absorption).',
+    storageZH:'室溫 15–30°C，乾燥避光保存（防潮）。',
+    storageEN:'Store at 15–30°C; keep dry and protect from light (moisture-sensitive).',
+  },
+  'pantoprazole':{
+    genericZH:'泮托拉唑（Pantoprazole）',
+    indicationZH:'GERD、消化性潰瘍、H. pylori 根除合併療法、Zollinger-Ellison 症候群。',
+    indicationEN:'GERD, peptic ulcer, H. pylori eradication (combination therapy), Zollinger-Ellison syndrome.',
+    usageZH:'40 mg 每日一次，餐前服用。嚴重狀況可增至 80 mg/日。',
+    usageEN:'40 mg once daily before meals. May increase to 80 mg/day in severe cases.',
+    adverseZH:'頭痛、腹瀉、腹痛（常見）。長期：低鎂血症、骨折風險略增。',
+    adverseEN:'Headache, diarrhea, abdominal pain (common). Long-term: hypomagnesemia, slightly ↑fracture risk.',
+    contraindicationZH:'對 PPI 過敏；合用 Rilpivirine（HIV 藥物）。',
+    contraindicationEN:'PPI hypersensitivity; concomitant Rilpivirine (HIV medication).',
+    precautionZH:'對 Clopidogrel 影響比 Omeprazole 少（CYP2C19 影響較小）。長期使用需定期評估。',
+    precautionEN:'Less effect on Clopidogrel than Omeprazole (less CYP2C19 inhibition). Regularly re-evaluate need for long-term use.',
+    interactionZH:'Atazanavir（吸收↓）；Methotrexate（清除↓）；較少影響 Clopidogrel。',
+    interactionEN:'Atazanavir (↓absorption); Methotrexate (↓clearance); less effect on Clopidogrel than other PPIs.',
+    storageZH:'室溫 20–25°C，乾燥保存，原包裝存放。',
+    storageEN:'Store at 20–25°C; protect from moisture; store in original packaging.',
+  },
+  'esomeprazole':{
+    genericZH:'埃索美拉唑（Esomeprazole）',
+    indicationZH:'GERD（含糜爛性食道炎）；消化性潰瘍；H. pylori 根除合併療法；NSAIDs 相關潰瘍預防。',
+    indicationEN:'GERD (including erosive esophagitis); peptic ulcer; H. pylori eradication (combination therapy); prevention of NSAID-associated ulcers.',
+    usageZH:'GERD：20–40 mg 每日一次，餐前服用。膠囊整顆吞服，勿嚼碎。',
+    usageEN:'GERD: 20–40 mg once daily before meals. Swallow capsule whole; do not chew or crush.',
+    adverseZH:'頭痛、腹瀉、噁心、腹痛。長期使用同 Omeprazole。',
+    adverseEN:'Headache, diarrhea, nausea, abdominal pain. Long-term effects same as Omeprazole.',
+    contraindicationZH:'對 PPI 過敏；合用 Nelfinavir、Rilpivirine。',
+    contraindicationEN:'PPI hypersensitivity; concomitant Nelfinavir or Rilpivirine.',
+    precautionZH:'嚴重肝功能不全最大劑量 20 mg/日。長期用藥定期評估。',
+    precautionEN:'Max 20 mg/day in severe hepatic impairment. Periodically re-evaluate long-term therapy.',
+    interactionZH:'Clopidogrel（同 Omeprazole，影響 CYP2C19）；Atazanavir（吸收↓）。',
+    interactionEN:'Clopidogrel (same as Omeprazole — CYP2C19 interaction); Atazanavir (↓absorption).',
+    storageZH:'室溫 30°C 以下，乾燥保存。',
+    storageEN:'Store below 30°C; protect from moisture.',
+  },
+  'quetiapine':{
+    genericZH:'喹硫平（Quetiapine）',
+    indicationZH:'思覺失調症；雙極性障礙（躁症、鬱症發作）；重度憂鬱症（輔助治療）。',
+    indicationEN:'Schizophrenia; bipolar disorder (manic and depressive episodes); major depressive disorder (adjunct therapy).',
+    usageZH:'思覺失調：從 25–50 mg 每日兩次起始，逐步增量至 300–450 mg/日。可隨餐或空腹服用。',
+    usageEN:'Schizophrenia: start at 25–50 mg twice daily; titrate to 300–450 mg/day. May be taken with or without food.',
+    adverseZH:'嗜睡、口乾、頭暈（常見）、體重增加、血糖升高、血脂異常。嚴重：QT 延長、代謝症候群、遲發性運動障礙（長期）。',
+    adverseEN:'Somnolence, dry mouth, dizziness (common), weight gain, hyperglycemia, dyslipidemia. Serious: QT prolongation, metabolic syndrome, tardive dyskinesia (long-term).',
+    contraindicationZH:'對 Quetiapine 過敏；合用強 CYP3A4 抑制劑（Itraconazole 等）須謹慎。',
+    contraindicationEN:'Hypersensitivity to quetiapine; use with strong CYP3A4 inhibitors (e.g., Itraconazole) requires caution.',
+    precautionZH:'監測血糖、血脂、體重（代謝監測）。老年人使用需謹慎（跌倒風險、心血管事件）。有 QT 延長危險因素者監測心電圖。',
+    precautionEN:'Monitor blood glucose, lipids, and weight (metabolic monitoring). Use with caution in elderly (fall risk, cardiovascular events). Monitor ECG in patients with QT risk factors.',
+    interactionZH:'CYP3A4 抑制劑（Clarithromycin、Azole 抗黴菌：血中濃度大幅↑，降低 Quetiapine 劑量）；Phenytoin、Carbamazepine（濃度↓）；QT 延長藥物（風險疊加）。',
+    interactionEN:'CYP3A4 inhibitors (Clarithromycin, Azole antifungals: markedly ↑levels — reduce quetiapine dose); Phenytoin, Carbamazepine (↓levels); QT-prolonging drugs (additive risk).',
+    storageZH:'室溫 25°C 以下，乾燥保存，避光。',
+    storageEN:'Store below 25°C in a dry place; protect from light.',
+  },
+  'risperidone':{
+    genericZH:'利培酮（Risperidone）',
+    indicationZH:'思覺失調症；雙極性障礙躁症發作（輔助）；自閉症相關易怒行為（兒童/青少年）。',
+    indicationEN:'Schizophrenia; bipolar disorder (manic episodes, adjunct); irritability associated with autistic disorder (children/adolescents).',
+    usageZH:'成人 2 mg 每日一次或分兩次起始，逐步增量至 4–8 mg/日。',
+    usageEN:'Adults: start at 2 mg once daily or in two divided doses; titrate to 4–8 mg/day.',
+    adverseZH:'錐體外症狀（EPS，劑量相關）、嗜睡、體重增加、高泌乳素血症（月經不順、泌乳）。',
+    adverseEN:'Extrapyramidal symptoms (EPS, dose-related), somnolence, weight gain, hyperprolactinemia (menstrual irregularities, galactorrhea).',
+    contraindicationZH:'對 Risperidone 或 Paliperidone 嚴重過敏。',
+    contraindicationEN:'Severe hypersensitivity to Risperidone or Paliperidone.',
+    precautionZH:'老年失智症患者死亡率增加（FDA 黑框警告）。QT 延長風險。長期使用監測錐體外症狀。',
+    precautionEN:'Increased mortality in elderly patients with dementia (FDA black box warning). QT prolongation risk. Monitor extrapyramidal symptoms with long-term use.',
+    interactionZH:'CYP2D6 抑制劑（Paroxetine、Fluoxetine：血中濃度升高）；Carbamazepine（濃度↓）；Clozapine（Risperidone 濃度↑）。',
+    interactionEN:'CYP2D6 inhibitors (Paroxetine, Fluoxetine: ↑risperidone levels); Carbamazepine (↓levels); Clozapine (↑risperidone levels).',
+    storageZH:'室溫 15–25°C，避光保存。口服液開封後冷藏（2–8°C）。',
+    storageEN:'Store at 15–25°C; protect from light. Oral solution: refrigerate (2–8°C) after opening.',
+  },
+  'fluoxetine':{
+    genericZH:'氟西汀（Fluoxetine）',
+    indicationZH:'重度憂鬱症；恐慌症；強迫症；暴食症；經前情緒障礙。',
+    indicationEN:'Major depressive disorder; panic disorder; obsessive-compulsive disorder; bulimia nervosa; premenstrual dysphoric disorder.',
+    usageZH:'成人 20 mg 每日一次（早晨）起始，依療效可增至 60 mg/日。療效可能需 4–6 週。可隨餐或空腹服用。',
+    usageEN:'Adults: 20 mg once daily (morning) to start; increase to up to 60 mg/day as needed. Therapeutic effect may take 4–6 weeks. May be taken with or without food.',
+    adverseZH:'噁心、頭痛、失眠、性功能障礙（常見）。嚴重：血清素症候群（合用其他血清素藥物時）；出血風險增加；自殺意念（18 歲以下黑框警告）。',
+    adverseEN:'Nausea, headache, insomnia, sexual dysfunction (common). Serious: serotonin syndrome (with other serotonergic agents); ↑bleeding risk; suicidal ideation (black box warning for patients <18).',
+    contraindicationZH:'合用 MAOIs（停藥後須間隔 14 天）；合用 Thioridazine（QT 延長）；合用 Pimozide。',
+    contraindicationEN:'Concomitant MAOIs (14-day washout required); concomitant Thioridazine (QT prolongation); concomitant Pimozide.',
+    precautionZH:'停藥不可驟停（長半衰期可緩衝，但仍建議緩慢減量）。癲癇患者慎用。出血風險（合用 NSAIDs、Warfarin）。',
+    precautionEN:'Do not stop abruptly (long half-life buffers discontinuation, but tapering still recommended). Use with caution in epilepsy. Bleeding risk with concomitant NSAIDs or Warfarin.',
+    interactionZH:'MAOIs（嚴重血清素症候群，禁忌）；Tramadol（血清素症候群）；CYP2D6 受質（Tricyclic antidepressants、β 阻斷劑）濃度升高；Warfarin（INR↑）。',
+    interactionEN:'MAOIs (serious serotonin syndrome — contraindicated); Tramadol (serotonin syndrome); CYP2D6 substrates (TCAs, β-blockers: ↑levels); Warfarin (↑INR).',
+    storageZH:'室溫 15–30°C，乾燥保存，避光。',
+    storageEN:'Store at 15–30°C; protect from moisture and light.',
+  },
+  'sertraline':{
+    genericZH:'舍曲林（Sertraline）',
+    indicationZH:'重度憂鬱症、恐慌症、PTSD、強迫症、社交焦慮症、經前情緒障礙。',
+    indicationEN:'Major depressive disorder, panic disorder, PTSD, OCD, social anxiety disorder, premenstrual dysphoric disorder.',
+    usageZH:'初始 50 mg 每日一次，依療效調整至 50–200 mg/日。可隨餐服用以減少噁心。',
+    usageEN:'Start at 50 mg once daily; titrate to 50–200 mg/day as needed. May be taken with food to reduce nausea.',
+    adverseZH:'噁心、腹瀉、口乾、失眠、性功能障礙。出血風險（消化道）。血清素症候群（與其他血清素藥物合用）。',
+    adverseEN:'Nausea, diarrhea, dry mouth, insomnia, sexual dysfunction. Increased GI bleeding risk. Serotonin syndrome (with other serotonergic agents).',
+    contraindicationZH:'合用 MAOIs（須間隔 14 天）；合用 Pimozide；Disulfiram（口服濃縮液含酒精）。',
+    contraindicationEN:'Concomitant MAOIs (14-day washout required); concomitant Pimozide; Disulfiram (oral concentrate contains alcohol).',
+    precautionZH:'緩慢增量以提升耐受性。監測自殺意念（尤其初期或劑量調整後）。不可驟然停藥。',
+    precautionEN:'Titrate gradually to improve tolerability. Monitor for suicidal ideation (especially initially or after dose adjustments). Do not stop abruptly.',
+    interactionZH:'MAOIs（嚴重，禁忌）；CYP2D6 受質（中度抑制）；NSAIDs、Warfarin（出血風險↑）；Tramadol（血清素症候群）。',
+    interactionEN:'MAOIs (serious — contraindicated); CYP2D6 substrates (moderate inhibition); NSAIDs, Warfarin (↑bleeding risk); Tramadol (serotonin syndrome).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'escitalopram':{
+    genericZH:'艾司西酞普蘭（Escitalopram）',
+    indicationZH:'重度憂鬱症；廣泛性焦慮症；恐慌症；社交焦慮症。',
+    indicationEN:'Major depressive disorder; generalized anxiety disorder; panic disorder; social anxiety disorder.',
+    usageZH:'初始 10 mg 每日一次，可增至 20 mg/日。老年人或肝臟疾病患者上限 10 mg/日。',
+    usageEN:'Start at 10 mg once daily; may increase to 20 mg/day. Elderly or hepatically impaired patients: max 10 mg/day.',
+    adverseZH:'噁心、頭痛、失眠、嗜睡、性功能障礙。QT 延長（高劑量時）。',
+    adverseEN:'Nausea, headache, insomnia, somnolence, sexual dysfunction. QT prolongation (at high doses).',
+    contraindicationZH:'合用 MAOIs；QT 延長或低血鉀；合用 Citalopram（心臟風險疊加）；先天性 QT 延長症候群。',
+    contraindicationEN:'Concomitant MAOIs; known QT prolongation or hypokalemia; concomitant Citalopram (additive cardiac risk); congenital long QT syndrome.',
+    precautionZH:'心臟病患者謹慎（QT 延長）。老年人低鈉血症風險。不可驟然停藥。',
+    precautionEN:'Use with caution in cardiac patients (QT prolongation). Risk of hyponatremia in elderly. Do not stop abruptly.',
+    interactionZH:'MAOIs（禁忌）；QT 延長藥物（疊加）；NSAIDs、Warfarin（出血風險↑）；Omeprazole（Escitalopram 濃度略↑）。',
+    interactionEN:'MAOIs (contraindicated); QT-prolonging drugs (additive); NSAIDs, Warfarin (↑bleeding risk); Omeprazole (slightly ↑escitalopram levels).',
+    storageZH:'室溫 15–30°C，乾燥保存。',
+    storageEN:'Store at 15–30°C; protect from moisture.',
+  },
+  'warfarin':{
+    genericZH:'華法林（Warfarin）',
+    indicationZH:'靜脈血栓栓塞（DVT、PE）的治療與預防；非瓣膜性心房顫動的中風預防；機械性心臟瓣膜。',
+    indicationEN:'Treatment and prevention of venous thromboembolism (DVT, PE); stroke prevention in non-valvular atrial fibrillation; mechanical heart valves.',
+    usageZH:'每日一次，劑量個別化（目標 INR 通常 2–3；機械瓣膜 2.5–3.5）。固定時間服用，飲食中維生素 K 攝取應保持一致。',
+    usageEN:'Once daily; individualized dose (target INR typically 2–3; mechanical valves 2.5–3.5). Take at the same time daily; maintain consistent dietary vitamin K intake.',
+    adverseZH:'出血（最重要不良反應，從輕微瘀青到顱內出血均可能）。皮膚壞死（罕見，蛋白 C 缺乏患者）。',
+    adverseEN:'Bleeding (most important ADR, ranging from minor bruising to intracranial hemorrhage). Skin necrosis (rare, in protein C deficiency).',
+    contraindicationZH:'活動性出血；高出血風險（顱內手術後、最近顱內出血）；妊娠（第 1、3 孕期）；磁振造影前暫停（高劑量）。',
+    contraindicationEN:'Active bleeding; high bleeding risk (after intracranial surgery, recent intracranial hemorrhage); pregnancy (1st and 3rd trimesters).',
+    precautionZH:'定期監測 INR。飲食中維生素 K 含量保持穩定（勿大量增減深綠色蔬菜）。任何新藥或停藥後均需監測 INR。',
+    precautionEN:'Regular INR monitoring required. Maintain stable dietary vitamin K intake (avoid large fluctuations in green vegetable consumption). Monitor INR after any new drug is started or stopped.',
+    interactionZH:'極多藥物交互作用（約 200+ 種）。重要：Amiodarone（INR 大幅↑）；Fluconazole（INR↑）；Aspirin、NSAIDs（出血風險↑）；抗生素（腸道菌叢影響維生素 K）；Rifampicin（INR↓）。',
+    interactionEN:'Numerous drug interactions (200+). Key: Amiodarone (markedly ↑INR); Fluconazole (↑INR); Aspirin, NSAIDs (↑bleeding risk); antibiotics (alter gut flora, ↑INR); Rifampicin (↓INR).',
+    storageZH:'室溫 15–30°C，避光乾燥保存，原包裝密封。',
+    storageEN:'Store at 15–30°C; protect from light and moisture; keep in tightly sealed original packaging.',
+  },
+  'prednisolone':{
+    genericZH:'潑尼松龍（Prednisolone）',
+    indicationZH:'多種炎症及自體免疫疾病（氣喘急性發作、類風濕關節炎、發炎性腸病、腎病症候群、器官移植排斥預防）。',
+    indicationEN:'Various inflammatory and autoimmune conditions (acute asthma, rheumatoid arthritis, IBD, nephrotic syndrome, prevention of transplant rejection).',
+    usageZH:'劑量因適應症差異極大（1–2 mg/kg 或更高）。每日最高劑量通常早晨一次服用（仿照皮質醇晝夜節律）。隨餐服用。',
+    usageEN:'Dosage varies widely by indication (1–2 mg/kg/day or higher). Highest daily doses usually given in the morning (mimicking cortisol circadian rhythm). Take with food.',
+    adverseZH:'短期：血糖升高、液體滯留、高血壓、失眠、情緒波動。長期：骨質疏鬆、白內障、Cushing 樣外觀、免疫抑制、腎上腺抑制。',
+    adverseEN:'Short-term: hyperglycemia, fluid retention, hypertension, insomnia, mood changes. Long-term: osteoporosis, cataracts, Cushingoid features, immunosuppression, adrenal suppression.',
+    contraindicationZH:'全身性黴菌感染（未治療）；對類固醇過敏；活動性結核（未治療）。',
+    contraindicationEN:'Untreated systemic fungal infections; corticosteroid hypersensitivity; untreated active tuberculosis.',
+    precautionZH:'長期使用勿驟然停藥（腎上腺危象風險，需逐步減量）。補充鈣質與維生素 D 預防骨質疏鬆。監測血糖、血壓、感染跡象。',
+    precautionEN:'Do not discontinue abruptly with long-term use (risk of adrenal crisis — taper gradually). Supplement calcium and vitamin D to prevent osteoporosis. Monitor blood glucose, blood pressure, and signs of infection.',
+    interactionZH:'NSAIDs（胃腸出血↑）；抗糖尿病藥（血糖控制影響）；Rifampicin（類固醇療效↓）；利尿劑（低血鉀）；疫苗（活疫苗禁忌，免疫抑制劑量下）。',
+    interactionEN:'NSAIDs (↑GI bleeding); antidiabetics (impaired glycemic control); Rifampicin (↓corticosteroid efficacy); diuretics (hypokalemia); live vaccines (contraindicated at immunosuppressive doses).',
+    storageZH:'室溫 15–30°C，乾燥避光保存。',
+    storageEN:'Store at 15–30°C; protect from light and moisture.',
+  },
+  'dexamethasone':{
+    genericZH:'地塞米松（Dexamethasone）',
+    indicationZH:'嚴重過敏反應（合用腎上腺素後）；腦水腫；嚴重氣喘；化療誘發噁心嘔吐（預防）；COVID-19 重症（需氧者）。',
+    indicationEN:'Severe allergic reactions (after epinephrine); cerebral edema; severe asthma; prevention of chemotherapy-induced nausea and vomiting; severe COVID-19 (requiring oxygen).',
+    usageZH:'劑量因適應症不同差異大。抗炎：0.5–10 mg/日。化療止吐：8–20 mg 靜脈注射。',
+    usageEN:'Dose varies considerably by indication. Anti-inflammatory: 0.5–10 mg/day. Antiemetic (chemotherapy): 8–20 mg IV.',
+    adverseZH:'同 Prednisolone（抗炎效力約為 Prednisolone 的 7 倍，等效劑量下不良反應相近）。',
+    adverseEN:'Same as Prednisolone (potency approximately 7× that of Prednisolone; adverse effects similar on equivalent dosing basis).',
+    contraindicationZH:'全身性黴菌感染；對類固醇過敏。',
+    contraindicationEN:'Untreated systemic fungal infections; corticosteroid hypersensitivity.',
+    precautionZH:'同 Prednisolone。由於效力強，急性使用易出現血糖大幅波動。',
+    precautionEN:'Same as Prednisolone. Due to high potency, acute use frequently causes significant blood glucose fluctuations.',
+    interactionZH:'同 Prednisolone。Phenytoin、Carbamazepine（Dexamethasone 療效↓）。',
+    interactionEN:'Same as Prednisolone. Phenytoin, Carbamazepine (↓dexamethasone efficacy).',
+    storageZH:'室溫 20–25°C，避光保存（注射液）。',
+    storageEN:'Store at 20–25°C; protect from light (injection solution).',
+  },
+  'levothyroxine':{
+    genericZH:'左旋甲狀腺素（Levothyroxine / T4）',
+    indicationZH:'甲狀腺功能低下（Hypothyroidism）；甲狀腺癌術後 TSH 抑制治療；黏液性水腫。',
+    indicationEN:'Hypothyroidism; post-thyroidectomy TSH suppression in thyroid cancer; myxedema coma.',
+    usageZH:'早晨空腹服用（飯前 30–60 分鐘，與其他藥物間隔 4 小時）。劑量依 TSH 目標個別化，每 6–8 週調整一次。',
+    usageEN:'Take on an empty stomach in the morning, 30–60 minutes before food; separate from other medications by 4 hours. Individualize dose based on TSH target; reassess every 6–8 weeks.',
+    adverseZH:'劑量過高：心悸、出汗、失眠、體重減輕、心絞痛（老年人）、心房顫動。骨質疏鬆（長期 TSH 抑制）。',
+    adverseEN:'If dose too high: palpitations, sweating, insomnia, weight loss, angina (in elderly), atrial fibrillation. Osteoporosis with long-term TSH suppression.',
+    contraindicationZH:'未治療的腎上腺功能不全；急性心肌梗塞；未治療的甲狀腺毒症。',
+    contraindicationEN:'Untreated adrenal insufficiency; acute MI; untreated thyrotoxicosis.',
+    precautionZH:'心臟病患者以低劑量起始緩慢增量。監測 TSH（4–6 週後調整）。老年人敏感性高，謹慎使用。',
+    precautionEN:'Start at low dose with slow titration in cardiac patients. Monitor TSH (adjust after 4–6 weeks). Elderly patients are more sensitive — use with caution.',
+    interactionZH:'Calcium、鐵劑、制酸劑（吸收↓，間隔 4 小時）；Warfarin（INR 升高，需監測）；Estrogen（甲狀腺素需求增加）；Amiodarone（影響甲狀腺功能）。',
+    interactionEN:'Calcium, iron supplements, antacids (↓absorption — separate by 4 hours); Warfarin (↑INR, monitor); estrogen (↑levothyroxine requirements); Amiodarone (affects thyroid function).',
+    storageZH:'室溫 15–30°C，乾燥避光密封保存（對光和濕氣敏感）。',
+    storageEN:'Store at 15–30°C in a tightly closed, light-resistant container (sensitive to light and moisture).',
+  },
+  'salbutamol':{
+    genericZH:'沙丁胺醇（Salbutamol / Albuterol）',
+    indicationZH:'急性支氣管痙攣的緩解（氣喘、COPD 急性發作）；運動誘發支氣管收縮預防。',
+    indicationEN:'Acute relief of bronchospasm in asthma and COPD exacerbations; prevention of exercise-induced bronchoconstriction.',
+    usageZH:'定量噴霧吸入劑：急性發作時 100–200 mcg（1–2 吸），症狀未緩解可重複。預防：運動前 15 分鐘 200 mcg。每日使用 >4 次提示病情未受控。',
+    usageEN:'MDI: 100–200 mcg (1–2 puffs) for acute attacks; may repeat if relief incomplete. Prevention: 200 mcg 15 minutes before exercise. Using >4 times/day indicates poor disease control.',
+    adverseZH:'震顫（手抖）、心跳加速、頭痛（常見）。高劑量：低血鉀。嚴重：悖論性支氣管痙攣（立即停藥）。',
+    adverseEN:'Tremor, tachycardia, headache (common). High doses: hypokalemia. Serious: paradoxical bronchospasm (discontinue immediately).',
+    contraindicationZH:'對 Salbutamol 過敏；早期妊娠（口服劑型）。',
+    contraindicationEN:'Hypersensitivity to salbutamol; early pregnancy (oral formulation).',
+    precautionZH:'頻繁需要緩解劑提示氣喘控制不良，應重新評估。心血管疾病患者慎用。吸入後漱口（減少念珠菌感染，若合用類固醇吸入劑）。',
+    precautionEN:'Frequent need for rescue inhaler suggests inadequate asthma control — reassess therapy. Use with caution in cardiovascular disease. Rinse mouth after inhalation (if combined with inhaled corticosteroid).',
+    interactionZH:'β 阻斷劑（療效對抗）；利尿劑（低血鉀加成）；MAOIs、三環抗鬱藥（心血管效應↑）。',
+    interactionEN:'β-blockers (antagonize bronchodilatory effect); diuretics (additive hypokalemia); MAOIs, tricyclic antidepressants (↑cardiovascular effects).',
+    storageZH:'室溫 15–30°C，避免凍結，保護吸入器金屬罐不受強光直射。',
+    storageEN:'Store at 15–30°C; protect from freezing; protect the metal canister from direct strong sunlight.',
+  },
+  'montelukast':{
+    genericZH:'孟魯司特（Montelukast）',
+    indicationZH:'成人及兒童氣喘的預防與慢性治療；過敏性鼻炎症狀緩解。',
+    indicationEN:'Prevention and chronic treatment of asthma in adults and children; relief of allergic rhinitis symptoms.',
+    usageZH:'成人（氣喘）：10 mg 每晚一次。過敏性鼻炎：10 mg/日。兒童依年齡劑量不同（4–5 歲 4 mg；6–14 歲 5 mg）。',
+    usageEN:'Adults (asthma): 10 mg once nightly. Allergic rhinitis: 10 mg once daily. Children: dose varies by age (4–5 years: 4 mg; 6–14 years: 5 mg).',
+    adverseZH:'頭痛、腹痛（常見）。嚴重：神經精神不良反應（失眠、焦慮、憂鬱、自殺意念，FDA 黑框警告 2020 年）。',
+    adverseEN:'Headache, abdominal pain (common). Serious: neuropsychiatric adverse events (insomnia, anxiety, depression, suicidal ideation — FDA black box warning, 2020).',
+    contraindicationZH:'對 Montelukast 過敏；不用於急性氣喘發作的緩解。',
+    contraindicationEN:'Hypersensitivity to Montelukast; not for use as acute bronchodilator in asthma attacks.',
+    precautionZH:'告知患者及家屬神經精神不良反應；若出現相關症狀立即就醫。不可取代吸入型類固醇作為第一線控制藥。',
+    precautionEN:'Inform patients and caregivers about neuropsychiatric adverse events; seek medical attention if symptoms appear. Not a replacement for inhaled corticosteroids as first-line controller therapy.',
+    interactionZH:'Phenobarbital、Rifampicin（Montelukast 濃度↓）；Fenofibrate（競爭 CYP2C8，輕度交互作用）。',
+    interactionEN:'Phenobarbital, Rifampicin (↓montelukast levels); Fenofibrate (mild CYP2C8 competition).',
+    storageZH:'室溫 15–30°C，乾燥避光保存，原包裝密封。',
+    storageEN:'Store at 15–30°C in a dry, light-protected place; keep in original packaging.',
+  },
+  'diazepam':{
+    genericZH:'地西泮（Diazepam）',
+    indicationZH:'焦慮症；急性酒精戒斷症候群；癲癇持續狀態（靜脈注射）；肌肉痙攣；麻醉前用藥。',
+    indicationEN:'Anxiety disorders; acute alcohol withdrawal syndrome; status epilepticus (IV); muscle spasm; preoperative medication.',
+    usageZH:'口服：焦慮 2–10 mg 每日 2–4 次；肌肉痙攣 2–15 mg/日，分次服用。使用最低有效劑量與最短療程。',
+    usageEN:'Oral: anxiety 2–10 mg 2–4 times daily; muscle spasm 2–15 mg/day in divided doses. Use the lowest effective dose for the shortest necessary duration.',
+    adverseZH:'嗜睡、頭暈、協調失衡（常見）。心理及生理依賴（風險高）、記憶損傷。呼吸抑制（高劑量或合用鴉片類）。',
+    adverseEN:'Drowsiness, dizziness, coordination impairment (common). Physical and psychological dependence (high risk), memory impairment. Respiratory depression (high doses or with opioids).',
+    contraindicationZH:'重症肌無力；嚴重呼吸功能不全；睡眠呼吸中止症（未治療）；嚴重肝功能不全；合用 Sodium oxybate。',
+    contraindicationEN:'Myasthenia gravis; severe respiratory insufficiency; untreated sleep apnea; severe hepatic impairment; concomitant Sodium oxybate.',
+    precautionZH:'避免長期使用（依賴、戒斷問題）。停藥需緩慢減量（避免戒斷發作）。不可與酒精合用。老年人跌倒風險高。駕車、操作機械時應謹慎。',
+    precautionEN:'Avoid long-term use (dependence and withdrawal risk). Taper gradually on discontinuation (avoid withdrawal seizures). Do not combine with alcohol. High fall risk in elderly. Caution when driving or operating machinery.',
+    interactionZH:'中樞神經抑制劑（酒精、鴉片類：呼吸抑制↑）；CYP3A4 抑制劑（Azole 抗黴菌：Diazepam 濃度↑）；Cimetidine（清除↓）。',
+    interactionEN:'CNS depressants (alcohol, opioids: ↑respiratory depression); CYP3A4 inhibitors (Azole antifungals: ↑diazepam levels); Cimetidine (↓clearance).',
+    storageZH:'室溫 15–30°C，避光保存，依管制藥品規定儲存（二級管制）。',
+    storageEN:'Store at 15–30°C; protect from light; store according to controlled substance regulations.',
+  },
+}
+
+// ATC-5 fallback entries (broader class info)
+const CLINICAL_INFO_ATC = {
+  'n02be':CLINICAL_INFO['acetaminophen'],
+  'm01ae':CLINICAL_INFO['ibuprofen'],
+  'b01ac':CLINICAL_INFO['aspirin'],
+  'j01ca':CLINICAL_INFO['amoxicillin'],
+  'j01fa':CLINICAL_INFO['azithromycin'],
+  'j01ma':CLINICAL_INFO['ciprofloxacin'],
+  'j01xd':CLINICAL_INFO['metronidazole'],
+  'c08ca':CLINICAL_INFO['amlodipine'],
+  'c09ca':CLINICAL_INFO['losartan'],
+  'c09aa':CLINICAL_INFO['lisinopril'],
+  'c07ab':CLINICAL_INFO['metoprolol'],
+  'c07ag':CLINICAL_INFO['carvedilol'],
+  'c10aa':CLINICAL_INFO['atorvastatin'],
+  'a10ba':CLINICAL_INFO['metformin'],
+  'a10bb':CLINICAL_INFO['glipizide'],
+  'a10bh':CLINICAL_INFO['sitagliptin'],
+  'a02bc':CLINICAL_INFO['omeprazole'],
+  'n05ah':CLINICAL_INFO['quetiapine'],
+  'n05al':CLINICAL_INFO['risperidone'],
+  'n06ab':CLINICAL_INFO['sertraline'],
+  'n05ba':CLINICAL_INFO['diazepam'],
+  'h02ab':CLINICAL_INFO['prednisolone'],
+  'h03aa':CLINICAL_INFO['levothyroxine'],
+  'r03ac':CLINICAL_INFO['salbutamol'],
+  'r03dc':CLINICAL_INFO['montelukast'],
+  'b01aa':CLINICAL_INFO['warfarin'],
+}
+
+function getClinicalInfo(brand){
+  const key=(brand.ingredient||'').toLowerCase().trim()
+  const atc5=(brand.atc||'').toLowerCase().slice(0,5)
+  return CLINICAL_INFO[key] || CLINICAL_INFO_ATC[atc5] || null
+}
+
 // ── Brand Detail Bottom Sheet ──────────────────────────────────────────────
 function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onClose}){
   const [added,setAdded]=useState(false)
   const [imgOk,setImgOk]=useState(true)
   const [lightbox,setLightbox]=useState(false)
   const imgUrl=getDrugImage(brand.licId)
-  const {T}=useLang()
+  const {T, language}=useLang()
+  const ci=getClinicalInfo(brand)
+  const sfx=language==='en'?'EN':'ZH'
 
   useEffect(()=>{
     document.body.style.overflow='hidden'
@@ -1220,12 +1941,22 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
     high:{bg:'#fee2e2',color:'#991b1b',label:T.priceHigh}
   }
 
+  const clinicalSections=[
+    {base:'indication',       label:T.sectionIndication},
+    {base:'usage',            label:T.sectionUsage},
+    {base:'adverse',          label:T.sectionAdverse},
+    {base:'contraindication', label:T.sectionContraindication, warn:true},
+    {base:'precaution',       label:T.sectionPrecaution},
+    {base:'interaction',      label:T.sectionInteraction},
+    {base:'storage',          label:T.sectionStorage},
+  ]
+
   return(
     <>
       {lightbox&&imgUrl&&imgOk&&(
         <ImageLightbox src={imgUrl} alt={brand.nameEN} onClose={()=>setLightbox(false)}/>
       )}
-      {/* backdrop + flex-end centering */}
+      {/* backdrop */}
       <div onClick={onClose} style={{
         position:'fixed',inset:0,zIndex:800,background:'rgba(15,31,20,.45)',
         display:'flex',alignItems:'flex-end',justifyContent:'center'
@@ -1238,13 +1969,19 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
         boxShadow:'0 -10px 50px rgba(0,0,0,.22)',
         padding:'0 0 44px'
       }}>
-        {/* drag handle */}
-        <div style={{display:'flex',justifyContent:'center',padding:'14px 0 8px'}}>
+
+        {/* drag handle + close */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 8px'}}>
+          <div style={{width:32}}/>
           <div style={{width:40,height:4,background:'#e2e8f0',borderRadius:2}}/>
+          <button onClick={onClose} style={{
+            width:32,height:32,borderRadius:16,border:'none',background:'#f1f5f9',
+            cursor:'pointer',fontSize:16,color:'#94a3b8',display:'flex',alignItems:'center',justifyContent:'center'
+          }}>×</button>
         </div>
 
-        {/* header: image + title */}
-        <div style={{padding:'10px 20px 16px',display:'flex',gap:16,alignItems:'flex-start',borderBottom:`1px solid ${C.border}`}}>
+        {/* ── header: image + brand name ── */}
+        <div style={{padding:'8px 20px 16px',display:'flex',gap:16,alignItems:'flex-start',borderBottom:`1px solid ${C.border}`}}>
           {imgUrl&&imgOk?(
             <div onClick={()=>setLightbox(true)} style={{
               width:90,height:90,flexShrink:0,cursor:'zoom-in',position:'relative',borderRadius:14,
@@ -1254,7 +1991,7 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
                 style={{width:'100%',height:'100%',objectFit:'contain',padding:6}}/>
               <div style={{
                 position:'absolute',bottom:0,right:0,background:'rgba(0,0,0,.45)',
-                color:'#fff',fontSize:10,padding:'2px 5px',borderRadius:'8px 0 0 0',lineHeight:1.4
+                color:'#fff',fontSize:9,padding:'2px 5px',borderRadius:'8px 0 0 0',lineHeight:1.4
               }}>🔍</div>
             </div>
           ):(
@@ -1265,11 +2002,14 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
             }}>💊</div>
           )}
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:800,fontSize:16,lineHeight:1.35,color:C.text,marginBottom:3,wordBreak:'break-word'}}>
+            {/* brand name */}
+            <div style={{fontWeight:800,fontSize:16,lineHeight:1.35,color:C.text,marginBottom:2,wordBreak:'break-word'}}>
               {brand.nameEN}
             </div>
-            {brand.nameZH&&<div style={{fontSize:13,color:C.muted,marginBottom:8}}>{brand.nameZH}</div>}
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            {brand.nameZH&&(
+              <div style={{fontSize:13,color:C.muted,marginBottom:6}}>{brand.nameZH}</div>
+            )}
+            <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
               <DrugClassBadge raw={brand.drugClass}/>
               {priceBand&&(
                 <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:6,
@@ -1281,12 +2021,38 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
           </div>
         </div>
 
-        {/* NHI badges */}
-        <div style={{padding:'12px 20px',display:'flex',gap:6,flexWrap:'wrap',borderBottom:`1px solid ${C.border}`}}>
+        {/* ── names block: generic EN / generic ZH / brand ── */}
+        <div style={{padding:'12px 20px',background:'#f8fafc',borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:.7,marginBottom:8}}>
+            {T.drugNamesTitle}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'auto 1fr',gap:'5px 10px',fontSize:12}}>
+            <span style={{color:C.muted,fontWeight:600,whiteSpace:'nowrap'}}>{T.genericNameEN}</span>
+            <span style={{fontWeight:700,color:C.text}}>{brand.ingredient||brand.nameEN}</span>
+
+            {ci?.genericZH&&(
+              <>
+                <span style={{color:C.muted,fontWeight:600,whiteSpace:'nowrap'}}>{T.genericNameZH}</span>
+                <span style={{fontWeight:700,color:C.text}}>{ci.genericZH}</span>
+              </>
+            )}
+
+            <span style={{color:C.muted,fontWeight:600,whiteSpace:'nowrap'}}>{T.brandNameLabel}</span>
+            <span style={{color:C.text}}>{brand.nameEN}{brand.nameZH?`（${brand.nameZH}）`:''}</span>
+
+            {brand.form&&(
+              <>
+                <span style={{color:C.muted,fontWeight:600,whiteSpace:'nowrap'}}>{T.dosageFormLabel}</span>
+                <span style={{color:C.text}}>{dosageFormEN(brand.form)||brand.form}{brand.strength?` · ${brand.strength}`:''}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── NHI badges ── */}
+        <div style={{padding:'10px 20px',display:'flex',gap:6,flexWrap:'wrap',borderBottom:`1px solid ${C.border}`}}>
           <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:6,
-            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>
-            {T.nhiCovered}
-          </span>
+            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>{T.nhiCovered}</span>
           {brand.nhiChapter&&brand.nhiPdf?(
             <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
               target="_blank" rel="noreferrer"
@@ -1301,32 +2067,75 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
             </span>
           ):(
             <span style={{fontSize:11,padding:'3px 10px',borderRadius:6,
-              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.8}}>
-              {T.noReimbCond}
-            </span>
+              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.8}}>{T.noReimbCond}</span>
           )}
         </div>
 
-        {/* info grid */}
-        <div style={{padding:'14px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 16px'}}>
+        {/* ── info grid ── */}
+        <div style={{padding:'12px 20px 8px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px 16px',borderBottom:`1px solid ${C.border}`}}>
           {[
             ['NHI Code', brand.id],
-            ['ATC', brand.atc],
-            [T.dosageForm, dosageFormEN(brand.form)||brand.form],
-            [T.dosageLabel, brand.strength],
+            ['ATC Code', brand.atc],
             [T.manufacturerLabel, brand.manufacturer],
             ...(isStaff&&brand.price?[[T.nhiPriceLabel,`NT$ ${brand.price}`]]:[]),
           ].filter(([,v])=>v).map(([k,v])=>(
             <div key={k}>
               <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:2,textTransform:'uppercase',letterSpacing:.4}}>{k}</div>
-              <div style={{fontSize:13,fontWeight:600,color:C.text}}>{v}</div>
+              <div style={{fontSize:12,fontWeight:600,color:C.text}}>{v}</div>
             </div>
           ))}
         </div>
 
-        {/* external links */}
-        {(brand.licId||brand.nhiPdf)&&(
-          <div style={{padding:'0 20px 14px',display:'flex',gap:8,flexWrap:'wrap'}}>
+        {/* ── clinical information ── */}
+        {ci?(
+          <div style={{padding:'16px 20px 4px'}}>
+            <div style={{
+              fontSize:10,fontWeight:700,color:'#64748b',
+              textTransform:'uppercase',letterSpacing:.7,
+              paddingBottom:8,borderBottom:'2px solid #1e293b',marginBottom:0
+            }}>
+              {T.clinicalInfoTitle}
+            </div>
+            {clinicalSections.map((s,i)=>ci[s.base+sfx]?(
+              <div key={s.base}>
+                {s.warn?(
+                  /* contraindications: only section with a warning box */
+                  <div style={{margin:'12px 0',background:'#fff5f5',border:'1px solid #fca5a5',borderRadius:6,padding:'10px 14px'}}>
+                    <div style={{fontSize:11,fontWeight:800,color:'#b91c1c',textTransform:'uppercase',letterSpacing:.4,marginBottom:5}}>
+                      ⚠ {s.label}
+                    </div>
+                    <div style={{fontSize:12.5,color:'#7f1d1d',lineHeight:1.7,whiteSpace:'pre-line'}}>
+                      {ci[s.base+sfx]}
+                    </div>
+                  </div>
+                ):(
+                  <div style={{padding:'12px 0',borderBottom:'1px solid #e2e8f0'}}>
+                    <div style={{fontSize:11,fontWeight:700,color:'#1e293b',textTransform:'uppercase',letterSpacing:.4,marginBottom:5}}>
+                      {s.label}
+                    </div>
+                    <div style={{fontSize:12.5,color:'#334155',lineHeight:1.7,whiteSpace:'pre-line'}}>
+                      {ci[s.base+sfx]}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ):null)}
+          </div>
+        ):(
+          <div style={{padding:'16px 20px'}}>
+            <div style={{
+              background:'#f8fafc',borderRadius:8,padding:'14px 16px',
+              fontSize:12,color:C.muted,textAlign:'center',border:`1px dashed ${C.border}`
+            }}>
+              {T.noClinicalInfo}<br/>
+              <span style={{fontSize:11}}>{T.noClinicalInfoSub}</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── external links ── */}
+        {(brand.licId||(isStaff&&brand.nhiPdf))&&(
+          <div style={{padding:'4px 20px 12px',display:'flex',gap:8,flexWrap:'wrap'}}>
             {brand.licId&&(
               <a href={`https://lmspiq.fda.gov.tw/web/DRPIQ/DRPIQ1000Result?licId=${brand.licId}`}
                 target="_blank" rel="noreferrer"
@@ -1346,7 +2155,7 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
           </div>
         )}
 
-        {/* action buttons */}
+        {/* ── action buttons ── */}
         <div style={{padding:'4px 20px 0',display:'flex',gap:10}}>
           <button onClick={handleAdd} disabled={added} style={{
             flex:2,padding:'13px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',
@@ -1366,6 +2175,7 @@ function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, on
             </button>
           )}
         </div>
+
       </div>
       </div>
     </>
@@ -3448,6 +4258,56 @@ const SEVERITY_CFG = {
   LOW:      { color:'#16a34a', bg:'#f0fdf4', border:'#86efac', icon:'🟢', label:'LOW' },
 }
 
+function getKnownInteractionsFor(drug){
+  if(!drug) return []
+  const ingr=(drug.ingredient||'').toLowerCase().trim()
+  if(!ingr) return []
+  return INTERACTION_DB
+    .filter(ix=>ix.drugs.some(d=>ingr.includes(d)||d.includes(ingr)))
+    .map(ix=>{
+      const match=ix.drugs.find(d=>ingr.includes(d)||d.includes(ingr))
+      const other=ix.drugs.find(d=>d!==match)||ix.drugs[1]
+      return {...ix, otherName: other.charAt(0).toUpperCase()+other.slice(1)}
+    })
+    .sort((a,b)=>({HIGH:0,MODERATE:1,LOW:2}[a.severity])-({HIGH:0,MODERATE:1,LOW:2}[b.severity]))
+}
+
+function IxCard({ix, showPair=false}){
+  const cfg=SEVERITY_CFG[ix.severity]||SEVERITY_CFG.LOW
+  return(
+    <div style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:'hidden',marginBottom:0}}>
+      {/* severity header */}
+      <div style={{
+        display:'flex',alignItems:'center',gap:8,padding:'8px 14px',
+        background:cfg.bg,borderBottom:`1px solid ${cfg.border}`
+      }}>
+        <span style={{fontSize:15}}>{cfg.icon}</span>
+        <span style={{fontWeight:700,fontSize:12,color:cfg.color,textTransform:'uppercase',letterSpacing:.4}}>
+          {cfg.label}
+        </span>
+        {showPair&&(
+          <span style={{fontSize:13,fontWeight:700,color:C.text,marginLeft:4}}>
+            {ix.drugs.map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join(' ↔ ')}
+          </span>
+        )}
+        {!showPair&&ix.otherName&&(
+          <span style={{fontSize:13,fontWeight:700,color:C.text,marginLeft:4}}>
+            ↔ {ix.otherName}
+          </span>
+        )}
+      </div>
+      {/* body */}
+      <div style={{padding:'10px 14px',background:'#fff'}}>
+        <div style={{fontSize:13,color:C.text,marginBottom:4,lineHeight:1.5}}>{ix.en}</div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:8,lineHeight:1.5,fontStyle:'italic'}}>{ix.zh}</div>
+        <div style={{background:'#f8fafc',borderRadius:6,padding:'7px 10px',fontSize:12,color:'#334155'}}>
+          <span style={{fontWeight:700}}>Clinical Management: </span>{ix.management}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function DrugInteractionCenter({preset}){
   const [drugA,setDrugA]=useState('')
   const [drugB,setDrugB]=useState('')
@@ -3459,6 +4319,8 @@ function DrugInteractionCenter({preset}){
   const [showB,setShowB]=useState(false)
   const [alerts,setAlerts]=useState([])
   const [checked,setChecked]=useState(false)
+  const [knownIx,setKnownIx]=useState([])
+  const [presetDrug,setPresetDrug]=useState(null)
   const refA=useRef(); const refB=useRef()
 
   useEffect(()=>{
@@ -3470,166 +4332,208 @@ function DrugInteractionCenter({preset}){
   },[])
 
   useEffect(()=>{
-    if(preset){ setSelA(preset); setDrugA(preset.nameEN||preset.ingredient||''); setAlerts([]); setChecked(false) }
+    if(preset){
+      setPresetDrug(preset)
+      setSelA(preset); setDrugA(preset.ingredient||preset.nameEN||'')
+      setSelB(null); setDrugB('')
+      setAlerts([]); setChecked(false)
+      setKnownIx(getKnownInteractionsFor(preset))
+    }
   },[preset])
 
   function typeA(q){ setDrugA(q); setSelA(null); const r=q.length>=1?searchDrugs(q):[]; setResultsA(r); setShowA(q.length>=1&&r.length>0) }
   function typeB(q){ setDrugB(q); setSelB(null); const r=q.length>=1?searchDrugs(q):[]; setResultsB(r); setShowB(q.length>=1&&r.length>0) }
-  function pickA(d){ setSelA(d); setDrugA(d.nameEN); setShowA(false) }
-  function pickB(d){ setSelB(d); setDrugB(d.nameEN); setShowB(false) }
+  function pickA(d){ setSelA(d); setDrugA(d.ingredient||d.nameEN); setShowA(false) }
+  function pickB(d){ setSelB(d); setDrugB(d.ingredient||d.nameEN); setShowB(false) }
 
   function check(){
-    if(!selA||!selB){ return }
-    setAlerts(checkInteractions([selA,selB]))
-    setChecked(true)
+    if(!selA||!selB) return
+    setAlerts(checkInteractions([selA,selB])); setChecked(true)
   }
-  function reset(){ setSelA(null); setSelB(null); setDrugA(''); setDrugB(''); setAlerts([]); setChecked(false) }
+  function clearCheck(){ setSelB(null); setDrugB(''); setAlerts([]); setChecked(false) }
+  function startFresh(){
+    setPresetDrug(null); setSelA(null); setDrugA(''); setKnownIx([])
+    setSelB(null); setDrugB(''); setAlerts([]); setChecked(false)
+  }
 
   const inputStyle={width:'100%',padding:'10px 14px',fontSize:14,borderRadius:8,fontFamily:'inherit',
-    border:`1px solid ${C.border}`,outline:'none'}
+    border:`1px solid ${C.border}`,outline:'none',boxSizing:'border-box'}
 
-  // Always show known interactions reference table
+  const isPresetMode=!!presetDrug
+
+  // Dropdown helper
+  function Dropdown({results,onPick}){
+    return(
+      <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:300,background:'#fff',
+        border:`1px solid ${C.border}`,borderRadius:'0 0 8px 8px',boxShadow:'0 8px 24px rgba(0,0,0,.12)',maxHeight:200,overflowY:'auto'}}>
+        {results.slice(0,5).map(d=>(
+          <div key={d.id} onMouseDown={()=>onPick(d)}
+            style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:`1px solid ${C.border}`}}
+            onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
+            onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
+            <div style={{fontWeight:600}}>{d.ingredient}</div>
+            <div style={{fontSize:11,color:C.muted}}>{d.nameEN}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return(
     <LockedFeature minRole="staff">
-      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <Card style={{background:'#1A3572',border:'none',color:'#fff'}}>
-          <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>🤖 AI Drug Interaction Center</div>
-          <div style={{fontSize:13,opacity:.85}}>
-            Check for clinically significant drug–drug interactions. Alerts are based on NHI/Taiwan pharmacovigilance data and international guidelines.
+          <div style={{fontWeight:700,fontSize:17,marginBottom:3}}>Drug Interaction Center</div>
+          <div style={{fontSize:12,opacity:.85,lineHeight:1.5}}>
+            Check for clinically significant drug–drug interactions based on NHI/Taiwan pharmacovigilance data and international guidelines.
           </div>
-          <div style={{fontSize:11,marginTop:8,opacity:.7}}>⚠️ For clinical reference only. Always verify with a pharmacist or physician.</div>
+          <div style={{fontSize:11,marginTop:6,opacity:.65}}>For clinical reference only. Always verify with a pharmacist or physician.</div>
         </Card>
 
-        {/* Drug pair checker */}
+        {/* ── PRESET MODE: known interactions list ── */}
+        {isPresetMode&&(
+          <Card>
+            {/* drug name header */}
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,gap:8}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.5,marginBottom:3}}>
+                  ยา / Drug
+                </div>
+                <div style={{fontWeight:800,fontSize:17,color:C.text}}>{presetDrug.ingredient||presetDrug.nameEN}</div>
+                {presetDrug.nameZH&&<div style={{fontSize:13,color:C.muted}}>{presetDrug.nameZH}</div>}
+              </div>
+              <button onClick={startFresh} style={{
+                padding:'6px 12px',borderRadius:8,border:`1px solid ${C.border}`,
+                background:'#f8fafc',color:C.muted,fontSize:12,cursor:'pointer',flexShrink:0
+              }}>+ New Check</button>
+            </div>
+
+            {/* known interactions */}
+            <div style={{fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:.5,
+              borderBottom:'2px solid #1e293b',paddingBottom:6,marginBottom:12}}>
+              Known Interactions ({knownIx.length})
+            </div>
+
+            {knownIx.length>0?(
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {knownIx.map((ix,i)=><IxCard key={i} ix={ix}/>)}
+              </div>
+            ):(
+              <div style={{background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'12px 16px',
+                display:'flex',gap:10,alignItems:'center',marginBottom:4}}>
+                <span style={{fontSize:20}}>✅</span>
+                <div>
+                  <div style={{fontWeight:700,color:'#166534',fontSize:13}}>No known interactions in database</div>
+                  <div style={{fontSize:12,color:'#15803d',marginTop:2}}>
+                    {presetDrug.ingredient} does not appear in any recorded interaction pairs. Always verify clinically.
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* ── Checker: pair search ── */}
         <Card>
-          <div style={{fontWeight:600,fontSize:15,marginBottom:12}}>Interaction Checker — Select Two Drugs</div>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:12,color:C.text}}>
+            {isPresetMode ? `Check ${presetDrug.ingredient||presetDrug.nameEN} against another drug` : 'Interaction Checker — Select Two Drugs'}
+          </div>
+
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}}>
             {/* Drug A */}
             <div ref={refA} style={{position:'relative'}}>
-              <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:4}}>Drug A</div>
-              <input value={drugA} onChange={e=>typeA(e.target.value)}
-                onFocus={()=>drugA.length>=1&&resultsA.length>0&&setShowA(true)}
-                placeholder="Search drug A..."
-                style={{...inputStyle, borderColor: selA?C.success:C.border}}/>
-              {selA&&<div style={{fontSize:11,color:C.success,marginTop:3}}>✓ {selA.ingredient}</div>}
-              {showA&&(
-                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:300,background:'#fff',
-                  border:`1px solid ${C.border}`,borderRadius:'0 0 8px 8px',boxShadow:'0 8px 24px rgba(0,0,0,.12)',maxHeight:200,overflowY:'auto'}}>
-                  {resultsA.slice(0,5).map(d=>(
-                    <div key={d.id} onMouseDown={()=>pickA(d)}
-                      style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:`1px solid ${C.border}`}}
-                      onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
-                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                      <div style={{fontWeight:600}}>{d.ingredient}</div>
-                      <div style={{fontSize:11,color:C.muted}}>{d.nameEN}</div>
-                    </div>
-                  ))}
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.4,marginBottom:5}}>Drug A</div>
+              {isPresetMode?(
+                /* fixed in preset mode */
+                <div style={{
+                  padding:'10px 14px',borderRadius:8,border:`1px solid ${C.success}`,
+                  background:'#f0fdf4',fontSize:13,fontWeight:700,color:'#166534'
+                }}>
+                  ✓ {presetDrug.ingredient||presetDrug.nameEN}
                 </div>
+              ):(
+                <>
+                  <input value={drugA} onChange={e=>typeA(e.target.value)}
+                    onFocus={()=>drugA.length>=1&&resultsA.length>0&&setShowA(true)}
+                    placeholder="Search drug A…"
+                    style={{...inputStyle,borderColor:selA?C.success:C.border}}/>
+                  {selA&&<div style={{fontSize:11,color:C.success,marginTop:3}}>✓ {selA.ingredient}</div>}
+                  {showA&&<Dropdown results={resultsA} onPick={pickA}/>}
+                </>
               )}
             </div>
+
             {/* Drug B */}
             <div ref={refB} style={{position:'relative'}}>
-              <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:4}}>Drug B</div>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:'uppercase',letterSpacing:.4,marginBottom:5}}>Drug B</div>
               <input value={drugB} onChange={e=>typeB(e.target.value)}
                 onFocus={()=>drugB.length>=1&&resultsB.length>0&&setShowB(true)}
-                placeholder="Search drug B..."
-                style={{...inputStyle, borderColor: selB?C.success:C.border}}/>
+                placeholder="Search drug B…"
+                style={{...inputStyle,borderColor:selB?C.success:C.border}}/>
               {selB&&<div style={{fontSize:11,color:C.success,marginTop:3}}>✓ {selB.ingredient}</div>}
-              {showB&&(
-                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:300,background:'#fff',
-                  border:`1px solid ${C.border}`,borderRadius:'0 0 8px 8px',boxShadow:'0 8px 24px rgba(0,0,0,.12)',maxHeight:200,overflowY:'auto'}}>
-                  {resultsB.slice(0,5).map(d=>(
-                    <div key={d.id} onMouseDown={()=>pickB(d)}
-                      style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:`1px solid ${C.border}`}}
-                      onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
-                      onMouseLeave={e=>e.currentTarget.style.background='#fff'}>
-                      <div style={{fontWeight:600}}>{d.ingredient}</div>
-                      <div style={{fontSize:11,color:C.muted}}>{d.nameEN}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {showB&&<Dropdown results={resultsB} onPick={pickB}/>}
             </div>
           </div>
-          <div style={{display:'flex',gap:10}}>
+
+          <div style={{display:'flex',gap:8}}>
             <button onClick={check} disabled={!selA||!selB}
-              style={{flex:1,padding:'10px',borderRadius:8,fontSize:14,fontWeight:600,border:'none',cursor:selA&&selB?'pointer':'default',
+              style={{flex:1,padding:'10px',borderRadius:8,fontSize:13,fontWeight:700,border:'none',
+                cursor:selA&&selB?'pointer':'default',
                 background:selA&&selB?C.primary:'#e2e8f0',color:selA&&selB?'#fff':C.muted}}>
-              🔍 Check Interaction
+              Check Interaction
             </button>
-            <button onClick={reset}
-              style={{padding:'10px 18px',borderRadius:8,fontSize:14,fontWeight:500,border:`1px solid ${C.border}`,cursor:'pointer',background:'#f8fafc',color:C.text}}>
-              Clear
-            </button>
+            {(selB||checked)&&(
+              <button onClick={clearCheck}
+                style={{padding:'10px 16px',borderRadius:8,fontSize:13,fontWeight:500,
+                  border:`1px solid ${C.border}`,cursor:'pointer',background:'#f8fafc',color:C.text}}>
+                Clear
+              </button>
+            )}
           </div>
 
           {checked&&(
-            <div style={{marginTop:16}}>
+            <div style={{marginTop:14}}>
               {alerts.length===0?(
-                <div style={{background:'#f0fdf4',border:`1px solid #86efac`,borderRadius:10,padding:'12px 16px',
-                  display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:24}}>✅</span>
+                <div style={{background:'#f0fdf4',border:'1px solid #86efac',borderRadius:8,padding:'12px 14px',
+                  display:'flex',gap:10,alignItems:'center'}}>
+                  <span style={{fontSize:20}}>✅</span>
                   <div>
-                    <div style={{fontWeight:600,color:'#166534'}}>No significant interaction found</div>
+                    <div style={{fontWeight:700,color:'#166534',fontSize:13}}>No interaction found</div>
                     <div style={{fontSize:12,color:'#15803d',marginTop:2}}>
-                      {selA?.ingredient} + {selB?.ingredient} — no interaction recorded in the current database. Always verify clinically.
+                      {selA?.ingredient} + {selB?.ingredient} — no pair recorded. Always verify clinically.
                     </div>
                   </div>
                 </div>
               ):(
                 <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                  {alerts.map((a,i)=>{
-                    const cfg=SEVERITY_CFG[a.severity]||SEVERITY_CFG.LOW
-                    return(
-                      <div key={i} style={{background:cfg.bg,border:`1px solid ${cfg.border}`,borderRadius:10,padding:'14px 16px'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-                          <span style={{fontSize:18}}>{cfg.icon}</span>
-                          <span style={{fontWeight:700,fontSize:13,color:cfg.color}}>{cfg.label} SEVERITY</span>
-                          <span style={{fontSize:13,fontWeight:600,marginLeft:'auto',color:C.text}}>
-                            {a.drugA.ingredient} ↔ {a.drugB.ingredient}
-                          </span>
-                        </div>
-                        <div style={{fontSize:13,color:C.text,marginBottom:8}}>{a.en}</div>
-                        <div style={{fontSize:12,color:C.muted,marginBottom:8,fontStyle:'italic'}}>{a.zh}</div>
-                        <div style={{background:'rgba(255,255,255,.6)',borderRadius:8,padding:'8px 10px',fontSize:12}}>
-                          <span style={{fontWeight:600}}>Clinical Management: </span>{a.management}
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {alerts.map((a,i)=>(
+                    <IxCard key={i} ix={{...a,otherName:null}} showPair={true}/>
+                  ))}
                 </div>
               )}
             </div>
           )}
         </Card>
 
-        {/* Reference interaction table */}
-        <Card>
-          <div style={{fontWeight:600,fontSize:15,marginBottom:4}}>Known Clinically Significant Interactions</div>
-          <div style={{fontSize:12,color:C.muted,marginBottom:12}}>Based on NHI pharmacovigilance data and international clinical guidelines</div>
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {INTERACTION_DB.map((ix,i)=>{
-              const cfg=SEVERITY_CFG[ix.severity]||SEVERITY_CFG.LOW
-              return(
-                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',
-                  background:'#f8fafc',borderRadius:8,border:`1px solid ${C.border}`}}>
-                  <span style={{fontSize:16,flexShrink:0,marginTop:1}}>{cfg.icon}</span>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:13}}>
-                      {ix.drugs.map(d=>d.charAt(0).toUpperCase()+d.slice(1)).join(' + ')}
-                      <span style={{marginLeft:8,fontSize:11,fontWeight:600,color:cfg.color,
-                        background:cfg.bg,border:`1px solid ${cfg.border}`,
-                        padding:'1px 7px',borderRadius:10}}>{cfg.label}</span>
-                    </div>
-                    <div style={{fontSize:12,color:C.muted,marginTop:3}}>{ix.en}</div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
+        {/* ── Reference table (all known pairs) ── */}
+        {!isPresetMode&&(
+          <Card>
+            <div style={{fontWeight:700,fontSize:13,color:C.text,marginBottom:3}}>
+              All Known Interactions ({INTERACTION_DB.length} pairs)
+            </div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:12}}>
+              NHI pharmacovigilance data + international clinical guidelines
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {INTERACTION_DB.map((ix,i)=>(
+                <IxCard key={i} ix={ix} showPair={true}/>
+              ))}
+            </div>
+          </Card>
+        )}
+
       </div>
     </LockedFeature>
   )
