@@ -5,36 +5,38 @@ import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, DRUGS_LIVE, INTERACT
          searchByIngredient, loadDrugImages, getDrugImage, browseByATC, DATA_VERSION } from './data.js'
 
 
+// Medical color palette — deep clinical green, WHO/NHI standard
+// Primary: #1B6840 deep forest green · Dark: #13502F · Accent: #2A9D5C
 const D = {
-  primary: '#34D399',
-  primaryDark: '#10B981',
-  secondary: '#22D3EE',
-  accent: '#FB923C',
-  bg: '#020617',
-  card: '#0F172A',
-  text: '#F8FAFC',
-  muted: '#94A3B8',
-  border: '#1E293B',
-  danger: '#F87171',
-  warning: '#FBBF24',
-  success: '#4ADE80',
-  staffBg: '#1E293B'
+  primary:     '#2DC76A',
+  primaryDark: '#1FAF55',
+  secondary:   '#3A72CC',
+  accent:      '#3AD47A',
+  bg:          '#050F0A',
+  card:        '#081A10',
+  text:        '#E8F5EE',
+  muted:       '#7AAE90',
+  border:      '#102818',
+  danger:      '#F87171',
+  warning:     '#FBBF24',
+  success:     '#2DC76A',
+  staffBg:     '#0A1F12'
 }
 
 const C = {
-  primary: '#0E9F6E',
-  primaryDark: '#057A55',
-  secondary: '#06B6D4',
-  accent: '#F97316',
-  bg: '#F0FDF4',
-  card: '#FFFFFF',
-  text: '#0F172A',
-  muted: '#64748B',
-  border: '#D1FAE5',
-  danger: '#DC2626',
-  warning: '#F59E0B',
-  success: '#16A34A',
-  staffBg: '#FFFBEB'
+  primary:     '#1B6840',
+  primaryDark: '#13502F',
+  secondary:   '#1A3572',
+  accent:      '#2A9D5C',
+  bg:          '#EBF5EE',
+  card:        '#FFFFFF',
+  text:        '#0F1F14',
+  muted:       '#4A6B58',
+  border:      '#C2DFD0',
+  danger:      '#C0392B',
+  warning:     '#D48830',
+  success:     '#1B6840',
+  staffBg:     '#E8F5EE'
 }
 
 const LANG = {
@@ -252,10 +254,10 @@ function useLang() { return useContext(LangCtx) }
 
 function LangToggle(){
   const {language,setLanguage}=useLang()
-  const active={padding:'4px 10px',fontSize:11,fontWeight:800,borderRadius:6,border:'none',cursor:'pointer',background:'#0E9F6E',color:'#fff'}
-  const inactive={padding:'4px 10px',fontSize:11,fontWeight:700,borderRadius:6,border:'none',cursor:'pointer',background:'transparent',color:'#64748b'}
+  const active={padding:'4px 10px',fontSize:11,fontWeight:800,borderRadius:5,border:'none',cursor:'pointer',background:C.primary,color:'#fff',letterSpacing:.3}
+  const inactive={padding:'4px 10px',fontSize:11,fontWeight:700,borderRadius:5,border:'none',cursor:'pointer',background:'transparent',color:'#64748b',letterSpacing:.3}
   return(
-    <div style={{display:'flex',gap:2,background:'#f1f5f9',borderRadius:8,padding:2,flexShrink:0}}>
+    <div style={{display:'flex',gap:2,background:'#DFF0E8',borderRadius:7,padding:2,flexShrink:0}}>
       <button onClick={()=>setLanguage('zhTW')} style={language==='zhTW'?active:inactive}>中文</button>
       <button onClick={()=>setLanguage('en')} style={language==='en'?active:inactive}>EN</button>
     </div>
@@ -400,7 +402,7 @@ function LoginModal({onClose}){
       style={{
         position:'fixed',
         inset:0,
-        background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+        background:'rgba(27,104,64,0.75)',
         display:'flex',
         alignItems:'center',
         justifyContent:'center',
@@ -515,7 +517,7 @@ function LoginModal({onClose}){
               border:'none',
               background:loading
                 ? '#94A3B8'
-                : 'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                : '#1B6840',
               color:'#fff',
               fontSize:15,
               fontWeight:900,
@@ -599,7 +601,7 @@ function SignupModal({onClose}){
     <div style={{
       position:'fixed',
       inset:0,
-      background:'linear-gradient(135deg,rgba(14,159,110,.72),rgba(6,182,212,.72))',
+      background:'rgba(27,104,64,0.75)',
       display:'flex',
       alignItems:'center',
       justifyContent:'center',
@@ -659,7 +661,7 @@ function SignupModal({onClose}){
                 padding:'13px',
                 borderRadius:999,
                 border:'none',
-                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                background:'#1B6840',
                 color:'#fff',
                 fontSize:15,
                 fontWeight:900,
@@ -725,7 +727,7 @@ function SignupModal({onClose}){
                 padding:'13px',
                 borderRadius:999,
                 border:'none',
-                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                background:'#1B6840',
                 color:'#fff',
                 fontSize:15,
                 fontWeight:900,
@@ -1157,7 +1159,7 @@ function ConceptCard({concept, onClick}){
         </div>
         <div style={{
           display:'flex',flexDirection:'column',alignItems:'center',
-          background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+          background:'#EBF5EE',
           borderRadius:12,padding:'8px 14px',flexShrink:0,minWidth:52
         }}>
           <span style={{fontSize:22,fontWeight:900,color:C.primary,lineHeight:1}}>{concept.brandCount}</span>
@@ -1168,8 +1170,211 @@ function ConceptCard({concept, onClick}){
   )
 }
 
+// ── Image Lightbox ────────────────────────────────────────────────────────
+function ImageLightbox({src, alt, onClose}){
+  useEffect(()=>{
+    function h(e){ if(e.key==='Escape') onClose() }
+    window.addEventListener('keydown',h); return()=>window.removeEventListener('keydown',h)
+  },[onClose])
+  return(
+    <div onClick={onClose} style={{
+      position:'fixed',inset:0,zIndex:9999,background:'rgba(0,0,0,.88)',
+      display:'flex',alignItems:'center',justifyContent:'center',cursor:'zoom-out',padding:24
+    }}>
+      <img src={src} alt={alt} style={{
+        maxWidth:'88vw',maxHeight:'88vh',objectFit:'contain',
+        borderRadius:16,boxShadow:'0 16px 64px rgba(0,0,0,.6)',
+        background:'#fff',padding:12
+      }}/>
+      <button onClick={onClose} style={{
+        position:'absolute',top:20,right:20,background:'rgba(255,255,255,.15)',
+        border:'1px solid rgba(255,255,255,.3)',color:'#fff',fontSize:22,
+        width:44,height:44,borderRadius:22,cursor:'pointer',display:'flex',
+        alignItems:'center',justifyContent:'center',lineHeight:1
+      }}>×</button>
+    </div>
+  )
+}
+
+// ── Brand Detail Bottom Sheet ──────────────────────────────────────────────
+function BrandDetailModal({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onClose}){
+  const [added,setAdded]=useState(false)
+  const [imgOk,setImgOk]=useState(true)
+  const [lightbox,setLightbox]=useState(false)
+  const imgUrl=getDrugImage(brand.licId)
+  const {T}=useLang()
+
+  useEffect(()=>{
+    document.body.style.overflow='hidden'
+    return()=>{ document.body.style.overflow='' }
+  },[])
+
+  function handleAdd(){ setAdded(true); addToMyDrugs&&addToMyDrugs(brand) }
+  function sendToDDI(){ window.dispatchEvent(new CustomEvent('send-to-ddi',{detail:brand})); onClose() }
+
+  const p=parseFloat(brand.price||0)
+  const priceBand=isStaff&&p&&priceHigh ? p<=priceLow?'low':p<=priceHigh?'mid':'high' : null
+  const priceBandStyle={
+    low:{bg:'#dcfce7',color:'#166534',label:T.priceCheap},
+    mid:{bg:'#fef9c3',color:'#854d0e',label:T.priceMid},
+    high:{bg:'#fee2e2',color:'#991b1b',label:T.priceHigh}
+  }
+
+  return(
+    <>
+      {lightbox&&imgUrl&&imgOk&&(
+        <ImageLightbox src={imgUrl} alt={brand.nameEN} onClose={()=>setLightbox(false)}/>
+      )}
+      {/* backdrop */}
+      <div onClick={onClose} style={{
+        position:'fixed',inset:0,zIndex:800,background:'rgba(15,31,20,.45)',
+        animation:'fadeIn .18s ease'
+      }}/>
+      {/* sheet */}
+      <div onClick={e=>e.stopPropagation()} style={{
+        position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',
+        width:'100%',maxWidth:540,
+        background:'#fff',borderRadius:'22px 22px 0 0',
+        maxHeight:'92vh',overflowY:'auto',
+        zIndex:801,
+        boxShadow:'0 -10px 50px rgba(0,0,0,.22)',
+        padding:'0 0 44px'
+      }}>
+        {/* drag handle */}
+        <div style={{display:'flex',justifyContent:'center',padding:'14px 0 8px'}}>
+          <div style={{width:40,height:4,background:'#e2e8f0',borderRadius:2}}/>
+        </div>
+
+        {/* header: image + title */}
+        <div style={{padding:'10px 20px 16px',display:'flex',gap:16,alignItems:'flex-start',borderBottom:`1px solid ${C.border}`}}>
+          {imgUrl&&imgOk?(
+            <div onClick={()=>setLightbox(true)} style={{
+              width:90,height:90,flexShrink:0,cursor:'zoom-in',position:'relative',borderRadius:14,
+              overflow:'hidden',border:`1.5px solid ${C.border}`,background:'#fafafa',boxShadow:'0 2px 10px rgba(0,0,0,.09)'
+            }}>
+              <img src={imgUrl} alt={brand.nameEN} onError={()=>setImgOk(false)}
+                style={{width:'100%',height:'100%',objectFit:'contain',padding:6}}/>
+              <div style={{
+                position:'absolute',bottom:0,right:0,background:'rgba(0,0,0,.45)',
+                color:'#fff',fontSize:10,padding:'2px 5px',borderRadius:'8px 0 0 0',lineHeight:1.4
+              }}>🔍</div>
+            </div>
+          ):(
+            <div style={{
+              width:90,height:90,flexShrink:0,borderRadius:14,
+              background:'#EBF5EE',border:`1.5px solid ${C.border}`,
+              display:'flex',alignItems:'center',justifyContent:'center',fontSize:32
+            }}>💊</div>
+          )}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:800,fontSize:16,lineHeight:1.35,color:C.text,marginBottom:3,wordBreak:'break-word'}}>
+              {brand.nameEN}
+            </div>
+            {brand.nameZH&&<div style={{fontSize:13,color:C.muted,marginBottom:8}}>{brand.nameZH}</div>}
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              <DrugClassBadge raw={brand.drugClass}/>
+              {priceBand&&(
+                <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:6,
+                  background:priceBandStyle[priceBand].bg,color:priceBandStyle[priceBand].color}}>
+                  {priceBandStyle[priceBand].label}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* NHI badges */}
+        <div style={{padding:'12px 20px',display:'flex',gap:6,flexWrap:'wrap',borderBottom:`1px solid ${C.border}`}}>
+          <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:6,
+            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>
+            {T.nhiCovered}
+          </span>
+          {brand.nhiChapter&&brand.nhiPdf?(
+            <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
+              target="_blank" rel="noreferrer"
+              style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:6,textDecoration:'none',
+                background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'}}>
+              {T.reimbCond}{brand.nhiChapter} ↗
+            </a>
+          ):brand.nhiChapter?(
+            <span style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:6,
+              background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'}}>
+              {T.reimbCond}{brand.nhiChapter}
+            </span>
+          ):(
+            <span style={{fontSize:11,padding:'3px 10px',borderRadius:6,
+              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.8}}>
+              {T.noReimbCond}
+            </span>
+          )}
+        </div>
+
+        {/* info grid */}
+        <div style={{padding:'14px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px 16px'}}>
+          {[
+            ['NHI Code', brand.id],
+            ['ATC', brand.atc],
+            [T.dosageForm, dosageFormEN(brand.form)||brand.form],
+            [T.dosageLabel, brand.strength],
+            [T.manufacturerLabel, brand.manufacturer],
+            ...(isStaff&&brand.price?[[T.nhiPriceLabel,`NT$ ${brand.price}`]]:[]),
+          ].filter(([,v])=>v).map(([k,v])=>(
+            <div key={k}>
+              <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:2,textTransform:'uppercase',letterSpacing:.4}}>{k}</div>
+              <div style={{fontSize:13,fontWeight:600,color:C.text}}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* external links */}
+        {(brand.licId||brand.nhiPdf)&&(
+          <div style={{padding:'0 20px 14px',display:'flex',gap:8,flexWrap:'wrap'}}>
+            {brand.licId&&(
+              <a href={`https://lmspiq.fda.gov.tw/web/DRPIQ/DRPIQ1000Result?licId=${brand.licId}`}
+                target="_blank" rel="noreferrer"
+                style={{fontSize:12,fontWeight:700,color:C.primary,textDecoration:'none',
+                  border:`1px solid ${C.border}`,padding:'6px 14px',borderRadius:8,background:'#f8fafc'}}>
+                FDA 查詢 ↗
+              </a>
+            )}
+            {isStaff&&brand.nhiPdf&&(
+              <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
+                target="_blank" rel="noreferrer"
+                style={{fontSize:12,fontWeight:700,color:'#7c3aed',textDecoration:'none',
+                  border:'1px solid #ddd6fe',padding:'6px 14px',borderRadius:8,background:'#f8fafc'}}>
+                NHI PDF ↗
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* action buttons */}
+        <div style={{padding:'4px 20px 0',display:'flex',gap:10}}>
+          <button onClick={handleAdd} disabled={added} style={{
+            flex:2,padding:'13px',borderRadius:12,fontSize:14,fontWeight:800,border:'none',
+            cursor:added?'default':'pointer',
+            background:added?'#dcfce7':C.primary,
+            color:added?'#166534':'#fff',
+            transition:'background .15s'
+          }}>
+            {added?'✓ '+T.meds:T.addMyDrugs}
+          </button>
+          {isStaff&&(
+            <button onClick={sendToDDI} style={{
+              flex:1,padding:'13px',borderRadius:12,fontSize:12,fontWeight:700,
+              border:'1px solid #f59e0b',background:'#fffbeb',color:'#92400e',cursor:'pointer'
+            }}>
+              ⚠ {T.checkDDI}
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Ingredient Lookup — Brand Row ─────────────────────────────────────────
-function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh}){
+function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh, onCardClick}){
   const [added,setAdded]=useState(false)
   const [imgOk,setImgOk]=useState(true)
   const imgUrl=getDrugImage(brand.licId)
@@ -1180,39 +1385,44 @@ function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh}){
   const priceBand=isStaff&&p&&priceHigh
     ? p<=priceLow?'low':p<=priceHigh?'mid':'high'
     : null
+  const hasImg=imgUrl&&imgOk
   return(
-    <div style={{
-      display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',
-      border:`1px solid ${C.border}`,borderRadius:10,background:'#fafafa',
-      transition:'background .12s'
-    }}
-    onMouseEnter={e=>e.currentTarget.style.background='#f0f7ff'}
-    onMouseLeave={e=>e.currentTarget.style.background='#fafafa'}>
-      {imgUrl&&imgOk&&(
-        <img src={imgUrl} alt={brand.nameEN}
-          onError={()=>setImgOk(false)}
-          style={{
-            width:56,height:56,objectFit:'contain',borderRadius:8,
-            border:`1px solid ${C.border}`,flexShrink:0,background:'#fff',
-            padding:2
-          }}/>
-      )}
+    <div
+      onClick={()=>onCardClick&&onCardClick(brand)}
+      onMouseEnter={e=>{
+        e.currentTarget.style.background='#EBF5EE'
+        e.currentTarget.style.borderColor=C.primary
+        e.currentTarget.style.boxShadow=`0 2px 12px rgba(27,104,64,.12)`
+      }}
+      onMouseLeave={e=>{
+        e.currentTarget.style.background='#fafafa'
+        e.currentTarget.style.borderColor=C.border
+        e.currentTarget.style.boxShadow='none'
+      }}
+      style={{
+        display:'flex',alignItems:'center',gap:12,padding:'12px 14px',
+        border:`1px solid ${C.border}`,borderRadius:12,background:'#fafafa',
+        cursor:'pointer',transition:'all .14s ease'
+      }}>
+      {/* thumb or placeholder */}
+      <div style={{
+        width:52,height:52,flexShrink:0,borderRadius:10,overflow:'hidden',
+        border:`1px solid ${C.border}`,background:'#fff',
+        display:'flex',alignItems:'center',justifyContent:'center',fontSize:22
+      }}>
+        {hasImg
+          ? <img src={imgUrl} alt={brand.nameEN} onError={()=>setImgOk(false)}
+              style={{width:'100%',height:'100%',objectFit:'contain',padding:3}}/>
+          : '💊'}
+      </div>
+      {/* main info */}
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:2}}>
-          <span style={{fontWeight:700,fontSize:14}}>{brand.nameEN}</span>
+          <span style={{fontWeight:700,fontSize:14,color:C.text}}>{brand.nameEN}</span>
           <DrugClassBadge raw={brand.drugClass}/>
-        </div>
-        <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{brand.nameZH}</div>
-        <div style={{fontSize:11,color:C.muted,display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-          <span>{dosageFormEN(brand.form)||brand.form}</span>
-          {brand.strength&&<><span>·</span><span>{brand.strength}</span></>}
-          {brand.manufacturer&&<><span>·</span><span>{brand.manufacturer}</span></>}
-          {isStaff&&brand.price&&(
-            <><span>·</span><span style={{color:C.primary,fontWeight:700}}>NT$ {brand.price}</span></>
-          )}
           {priceBand&&(
             <span style={{
-              fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,marginLeft:2,
+              fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
               background:priceBand==='low'?'#dcfce7':priceBand==='mid'?'#fef9c3':'#fee2e2',
               color:priceBand==='low'?'#166534':priceBand==='mid'?'#854d0e':'#991b1b',
             }}>
@@ -1220,67 +1430,28 @@ function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh}){
             </span>
           )}
         </div>
-        <div style={{display:'flex',gap:10,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
-          <span style={{fontSize:10,color:'#94a3b8'}}>NHI: {brand.id}</span>
-          {brand.licId&&(
-            <a href={`https://lmspiq.fda.gov.tw/web/DRPIQ/DRPIQ1000Result?licId=${brand.licId}`}
-              target="_blank" rel="noreferrer"
-              style={{fontSize:10,color:C.primary,textDecoration:'none',fontWeight:600}}
-              onClick={e=>e.stopPropagation()}>
-              FDA →
-            </a>
-          )}
-          {isStaff&&brand.nhiPdf&&(
-            <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
-              target="_blank" rel="noreferrer"
-              style={{fontSize:10,color:'#7c3aed',textDecoration:'none',fontWeight:600}}
-              onClick={e=>e.stopPropagation()}>
-              NHI PDF →
-            </a>
-          )}
+        {brand.nameZH&&<div style={{fontSize:12,color:C.muted,marginBottom:3}}>{brand.nameZH}</div>}
+        <div style={{fontSize:11,color:C.muted,display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+          {brand.form&&<span>{dosageFormEN(brand.form)||brand.form}</span>}
+          {brand.strength&&<><span>·</span><span>{brand.strength}</span></>}
+          {isStaff&&brand.price&&<><span>·</span><span style={{color:C.primary,fontWeight:700}}>NT$ {brand.price}</span></>}
         </div>
         <div style={{display:'flex',gap:6,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
-          <span style={{
-            fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5,
-            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'
-          }}>{T.nhiCovered}</span>
-          {brand.nhiChapter&&brand.nhiPdf?(
-            <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
-              target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
-              style={{
-                fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5,textDecoration:'none',
-                background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
-              }}>
-              {T.reimbCond}{brand.nhiChapter} ↗
-            </a>
-          ):brand.nhiChapter?(
-            <span style={{
-              fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
-              background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
-            }}>{T.reimbCond}{brand.nhiChapter}</span>
+          <span style={{fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5,
+            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>{T.nhiCovered}</span>
+          {brand.nhiChapter?(
+            <span style={{fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
+              background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'}}>
+              {T.reimbCond}{brand.nhiChapter}
+            </span>
           ):(
-            <span style={{
-              fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
-              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.7
-            }}>{T.noReimbCond}</span>
+            <span style={{fontSize:10,padding:'2px 7px',borderRadius:5,
+              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.8}}>{T.noReimbCond}</span>
           )}
         </div>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0,marginTop:2}}>
-        <button onClick={handleAdd} disabled={added}
-          style={{padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',
-            cursor:added?'default':'pointer',
-            background:added?'#dcfce7':C.primary,color:added?'#166534':'#fff'}}>
-          {added?T.addedBtn:T.addBtn}
-        </button>
-        {isStaff&&(
-          <button onClick={sendToDDI}
-            style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:700,
-              border:`1px solid #f59e0b`,background:'#fffbeb',color:'#92400e',cursor:'pointer'}}>
-            ⚠ {T.checkDDI}
-          </button>
-        )}
-      </div>
+      {/* chevron hint */}
+      <span style={{color:C.muted,fontSize:16,flexShrink:0,opacity:.5}}>›</span>
     </div>
   )
 }
@@ -1384,7 +1555,7 @@ function ATCBrowser({addToMyDrugs, nhiCount}){
       {/* Selected concept → brand list */}
       {selectedConcept?(
         <div>
-          <div style={{background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',border:`1px solid ${C.primary}33`,
+          <div style={{background:'#EBF5EE',border:`1px solid ${C.primary}33`,
             borderRadius:14,padding:'14px 16px',marginBottom:12}}>
             <div style={{fontSize:22,fontWeight:900,marginBottom:2}}>{selectedConcept.ingredient}</div>
             <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{T.ingredientRoot}</div>
@@ -1495,7 +1666,7 @@ function BulkSearch(){
             fontSize:13,fontWeight:700,marginBottom:12,padding:0}}>
           {T.backTree}
         </button>
-        <div style={{background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+        <div style={{background:'#EBF5EE',
           border:`1px solid ${C.primary}33`,borderRadius:14,padding:'14px 16px',marginBottom:12}}>
           <div style={{fontSize:22,fontWeight:900,marginBottom:2}}>{viewConcept.ingredient}</div>
           <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{T.ingredientRoot}</div>
@@ -1639,6 +1810,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
   const [selected,setSelected]=useState(null)
   const [filter,setFilter]=useState({form:'all',cls:'all'})
   const [sortBy,setSortBy]=useState('price')
+  const [detailBrand,setDetailBrand]=useState(null)
   const [copyDone,setCopyDone]=useState(false)
   const {isStaff}=useAuth()
   const {T}=useLang()
@@ -1781,7 +1953,7 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           }}>{T.backAll}</button>
 
           <div style={{
-            background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+            background:'#EBF5EE',
             border:`1px solid ${C.primary}33`,borderRadius:14,
             padding:'16px 18px',marginBottom:14
           }}>
@@ -1846,7 +2018,8 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             {filteredBrands.length>0
               ?filteredBrands.map(b=>(
                 <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}
-                  priceLow={priceLow} priceHigh={priceHigh}/>
+                  priceLow={priceLow} priceHigh={priceHigh}
+                  onCardClick={setDetailBrand}/>
               ))
               :<Card style={{textAlign:'center',color:C.muted,padding:32}}>
                 {T.noBrandsMatch}
@@ -1886,6 +2059,16 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
             </Card>
           ):null}
         </>
+      )}
+      {detailBrand&&(
+        <BrandDetailModal
+          brand={detailBrand}
+          isStaff={isStaff}
+          addToMyDrugs={addToMyDrugs}
+          priceLow={priceLow}
+          priceHigh={priceHigh}
+          onClose={()=>setDetailBrand(null)}
+        />
       )}
     </div>
   )
@@ -2214,7 +2397,7 @@ function ScanRx({addToMyDrugs}){
           width:74,
           height:74,
           borderRadius:'50%',
-          background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+          background:'#1B6840',
           color:'#fff',
           display:'flex',
           alignItems:'center',
@@ -2252,7 +2435,7 @@ function ScanRx({addToMyDrugs}){
             width:'100%',
             maxWidth:280,
             padding:'14px 22px',
-            background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+            background:'#1B6840',
             color:'#fff',
             border:'none',
             borderRadius:16,
@@ -2389,7 +2572,7 @@ function ScanRx({addToMyDrugs}){
                 padding:'14px 16px',
                 border:'none',
                 borderRadius:16,
-                background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+                background:'#1B6840',
                 color:'#fff',
                 fontSize:15,
                 fontWeight:900,
@@ -3189,7 +3372,7 @@ function SettingsPage({
             onChange={(e)=>setLanguage(e.target.value)}
             style={{
               border:'none',
-              background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+              background:'#1B6840',
               color:'#fff',
               borderRadius:12,
               padding:'8px 12px',
@@ -3242,7 +3425,7 @@ function getSettingsDescStyle(darkMode){
 function getSettingsButtonStyle(){
   return{
     border:'none',
-    background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+    background:'#1B6840',
     color:'#fff',
     borderRadius:12,
     padding:'8px 14px',
@@ -3303,7 +3486,7 @@ function DrugInteractionCenter({preset}){
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
 
         {/* Header */}
-        <Card style={{background:'linear-gradient(135deg,#1a73e8 0%,#0d47a1 100%)',border:'none',color:'#fff'}}>
+        <Card style={{background:'#1A3572',border:'none',color:'#fff'}}>
           <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>🤖 AI Drug Interaction Center</div>
           <div style={{fontSize:13,opacity:.85}}>
             Check for clinically significant drug–drug interactions. Alerts are based on NHI/Taiwan pharmacovigilance data and international guidelines.
@@ -3614,7 +3797,7 @@ function UserProfilePage({darkMode}){
           width:58,
           height:58,
           borderRadius:'50%',
-          background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
+          background:'#1B6840',
           color:'#fff',
           display:'flex',
           alignItems:'center',
@@ -3839,9 +4022,7 @@ function AppInner(){
       '--border':theme.border,
 
       minHeight:'100vh',
-      background:darkMode
-        ? 'linear-gradient(180deg,#020617 0%,#0F172A 55%,#111827 100%)'
-        : 'linear-gradient(180deg,#ECFDF5 0%,#F8FAFC 45%,#FFFFFF 100%)',
+      background:darkMode ? '#050F0A' : '#EBF5EE',
       paddingBottom:96,
       color:theme.text,
       transition:'all .2s ease'
@@ -3852,13 +4033,13 @@ function AppInner(){
         top:0,
         zIndex:100,
         background:darkMode
-          ? 'rgba(15,23,42,.88)'
-          : 'rgba(255,255,255,.86)',
-        backdropFilter:'blur(16px)',
-        borderBottom:`1px solid ${theme.border}`,
+          ? 'rgba(6,17,26,.93)'
+          : 'rgba(255,255,255,.95)',
+        backdropFilter:'blur(20px)',
+        borderBottom:`2px solid ${darkMode?'#1A3518':C.primary}`,
         boxShadow:darkMode
-          ? '0 4px 20px rgba(0,0,0,.22)'
-          : '0 4px 20px rgba(15,23,42,.06)'
+          ? '0 4px 24px rgba(0,0,0,.35)'
+          : '0 2px 16px rgba(27,104,64,.10)'
       }}>
         <div style={{
           maxWidth:520,
@@ -3875,42 +4056,47 @@ function AppInner(){
             gap:12,
             minWidth:0
           }}>
-            <div style={{
-              width:42,
-              height:42,
-              borderRadius:15,
-              background:'linear-gradient(135deg,#0E9F6E,#06B6D4)',
-              display:'flex',
-              alignItems:'center',
-              justifyContent:'center',
-              color:'#fff',
-              fontSize:20,
-              boxShadow:'0 8px 20px rgba(6,182,212,.22)',
-              flexShrink:0
-            }}>
-              💊
+            <div style={{display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
+              <img src="/NHI_logo.png" alt="NHI"
+                style={{width:38,height:38,borderRadius:'50%',
+                  boxShadow:'0 2px 8px rgba(26,122,114,.25)',objectFit:'cover'}}/>
+              <img src="/nthu_logo.jpg" alt="NTHU"
+                style={{width:34,height:34,borderRadius:'50%',
+                  boxShadow:'0 2px 8px rgba(110,50,160,.18)',objectFit:'cover'}}/>
             </div>
 
             <div style={{minWidth:0}}>
               <div style={{
-                fontSize:16,
+                fontSize:15,
                 fontWeight:900,
+                letterSpacing:.3,
                 color:theme.text,
                 whiteSpace:'nowrap'
               }}>
                 {T.appName}
               </div>
-
-              <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3,flexWrap:'wrap'}}>
-                <span style={{fontSize:11,color:theme.primary,fontWeight:700}}>
+              <div style={{
+                fontSize:10,color:darkMode?'#7AAAB8':'#4A6B78',
+                fontWeight:500,marginTop:1,letterSpacing:.4,
+                whiteSpace:'nowrap'
+              }}>
+                全民健保藥品查詢系統
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:5,marginTop:2,flexWrap:'wrap'}}>
+                <span style={{
+                  fontSize:10,color:theme.primary,fontWeight:700,
+                  textTransform:'uppercase',letterSpacing:.5
+                }}>
                   {pageTitle}
                 </span>
                 {nhiCount>0&&(
                   <span style={{
-                    fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                    background:'#dcfce7',color:'#166534',letterSpacing:.3
+                    fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:3,
+                    background:darkMode?'#122838':'#D6EDEB',
+                    color:darkMode?'#2EC4B6':C.primary,
+                    letterSpacing:.3,border:`1px solid ${darkMode?'#1A3A4A':'#A8D0CE'}`
                   }}>
-                    {T.nhiDataLabel} {DATA_VERSION.date}
+                    NHI {DATA_VERSION.date}
                   </span>
                 )}
               </div>
@@ -4116,14 +4302,14 @@ function AppInner(){
         bottom:0,
         zIndex:250,
         background:darkMode
-          ? 'rgba(15,23,42,.92)'
-          : 'rgba(255,255,255,.92)',
-        backdropFilter:'blur(16px)',
-        borderTop:`1px solid ${theme.border}`,
+          ? 'rgba(6,17,26,.95)'
+          : 'rgba(255,255,255,.97)',
+        backdropFilter:'blur(20px)',
+        borderTop:`2px solid ${darkMode?'#1A3518':C.primary}`,
         boxShadow:darkMode
-          ? '0 -10px 28px rgba(0,0,0,.28)'
-          : '0 -10px 28px rgba(15,23,42,.10)',
-        padding:'9px 12px max(9px, env(safe-area-inset-bottom))'
+          ? '0 -8px 24px rgba(0,0,0,.40)'
+          : '0 -4px 20px rgba(27,104,64,.12)',
+        padding:'7px 12px max(7px, env(safe-area-inset-bottom))'
       }}>
         <div style={{
           maxWidth:520,
@@ -4149,18 +4335,20 @@ function AppInner(){
                   fontSize:22,
                   background:active
                     ? darkMode
-                      ? 'linear-gradient(135deg,#064E3B,#164E63)'
-                      : 'linear-gradient(135deg,#D1FAE5,#CFFAFE)'
+                      ? '#0A1F10'
+                      : '#D4EDE0'
                     : 'transparent',
                   color:active ? theme.primary : theme.muted,
                   display:'flex',
                   alignItems:'center',
                   justifyContent:'center',
                   position:'relative',
+                  borderBottom: active ? `2px solid ${theme.primary}` : '2px solid transparent',
+                  borderRadius:10,
                   boxShadow:active
                     ? darkMode
-                      ? '0 8px 18px rgba(52,211,153,.14)'
-                      : '0 8px 18px rgba(14,159,110,.16)'
+                      ? '0 4px 14px rgba(45,199,106,.15)'
+                      : '0 4px 14px rgba(27,104,64,.14)'
                     : 'none',
                   transition:'all .18s ease'
                 }}
