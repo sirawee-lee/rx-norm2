@@ -302,6 +302,36 @@ export function searchByIngredient(query) {
     .slice(0, 30)
 }
 
+// Browse all DRUGS_LIVE under a given ATC prefix (no limit, sorted by brand count).
+// Used by ATCBrowser: browseByATC('N05AH') → all antipsychotic diazepines grouped by ingredient.
+export function browseByATC(prefix) {
+  if (!prefix) return []
+  const q = prefix.toLowerCase()
+  const groups = new Map()
+  for (const d of DRUGS_LIVE) {
+    if (!(d.atc || '').toLowerCase().startsWith(q)) continue
+    const key = (d.ingredient || '').toLowerCase() || d.id
+    if (!groups.has(key)) {
+      groups.set(key, {
+        ingredient:  d.ingredient,
+        atc:         d.atc || '',
+        atcCategory: ATC_CATEGORIES[d.atc?.[0]?.toUpperCase()] || '',
+        brands:      [],
+        score:       1.0,
+      })
+    }
+    const g = groups.get(key)
+    g.brands.push(d)
+    if (d.atc && (!g.atc || d.atc.length > g.atc.length)) g.atc = d.atc
+  }
+  return [...groups.values()]
+    .map(g => ({ ...g, brandCount: g.brands.length }))
+    .sort((a, b) => b.brandCount - a.brandCount)
+}
+
+// NHI dataset version/freshness metadata — update when re-running preprocess_nhi.mjs
+export const DATA_VERSION = { date: '2026-05', drugs: 45025 }
+
 // Find therapeutic alternatives by ATC code (same level-4 prefix, deduplicated by ingredient)
 export function findAlternatives(drug, maxResults = 8) {
   if (!drug?.atc || drug.atc.length < 4) return []

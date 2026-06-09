@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, createContext, useContext } from 'react'
 import { AuthProvider, useAuth } from './auth.jsx'
-import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, INTERACTION_DB, checkInteractions,
+import { searchDrugs, loadNHIDrugs, DEMO_OCR_RESULT, DRUGS, DRUGS_LIVE, INTERACTION_DB, checkInteractions,
          ATC_CATEGORIES, drugClassLabel, computeStats, findAlternatives, matchOcrText,
-         searchByIngredient, loadDrugImages, getDrugImage } from './data.js'
+         searchByIngredient, loadDrugImages, getDrugImage, browseByATC, DATA_VERSION } from './data.js'
 
 
 const D = {
@@ -106,6 +106,40 @@ const LANG = {
     ocrQueryBadge:'Query from OCR pipeline',
     addBtn:'+ Add',
     addedBtn:'✓',
+    // Lookup page modes
+    modeSearch:'Search',
+    modeBrowse:'Browse ATC',
+    modeBulk:'Bulk',
+    // ATC Browser
+    atcBrowseTitle:'ATC Browser',
+    atcBrowseDesc:'Browse all NHI drugs by WHO ATC classification',
+    drugCount:'drugs',
+    backTree:'← Back',
+    viewBrands:'View brands',
+    // Export CSV
+    exportCSV:'Export CSV',
+    // Bulk search
+    bulkTitle:'Bulk Lookup',
+    bulkPlaceholder:'Paste drug names — one per line or comma-separated\ne.g. metformin, quetiapine, omeprazole',
+    bulkRun:'Look up all',
+    bulkClear:'Clear',
+    bulkColInput:'Input',
+    bulkColIngredient:'Matched Ingredient',
+    bulkColAtc:'ATC',
+    bulkColBrands:'Brands',
+    bulkNoMatch:'No match',
+    // Data freshness
+    nhiDataLabel:'NHI data',
+    nhiCovered:'✓ NHI Covered',
+    reimbCond:'Conditions §',
+    noReimbCond:'No special restrictions',
+    nhiChapterLabel:'NHI Chapter',
+    priceCheap:'💚 Low',
+    priceMid:'🟡 Average',
+    priceHigh:'🔴 Higher',
+    checkDDI:'Check DDI',
+    printMeds:'🖨 Print card',
+    printTitle:'Medication Card',
   },
 
   zhTW:{
@@ -176,6 +210,40 @@ const LANG = {
     ocrQueryBadge:'來自 OCR 辨識的查詢',
     addBtn:'+ 加入',
     addedBtn:'✓',
+    // Lookup page modes
+    modeSearch:'搜尋',
+    modeBrowse:'ATC 瀏覽',
+    modeBulk:'批次查詢',
+    // ATC Browser
+    atcBrowseTitle:'ATC 藥品分類',
+    atcBrowseDesc:'依 WHO ATC 分類瀏覽所有健保藥品',
+    drugCount:'個藥品',
+    backTree:'← 返回',
+    viewBrands:'查看品牌',
+    // Export CSV
+    exportCSV:'匯出 CSV',
+    // Bulk search
+    bulkTitle:'批次藥品查詢',
+    bulkPlaceholder:'貼上藥品名稱，每行一個或以逗號分隔\n例如：metformin, quetiapine, omeprazole',
+    bulkRun:'開始查詢',
+    bulkClear:'清除',
+    bulkColInput:'輸入名稱',
+    bulkColIngredient:'對應成分',
+    bulkColAtc:'ATC 代碼',
+    bulkColBrands:'品牌數',
+    bulkNoMatch:'查無結果',
+    // Data freshness
+    nhiDataLabel:'NHI 資料',
+    nhiCovered:'✓ 健保收載',
+    reimbCond:'給付規定 §',
+    noReimbCond:'無條件限制',
+    nhiChapterLabel:'給付規定章節',
+    priceCheap:'💚 最低',
+    priceMid:'🟡 中等',
+    priceHigh:'🔴 較高',
+    checkDDI:'查交互作用',
+    printMeds:'🖨 列印藥單',
+    printTitle:'用藥清單',
   }
 }
 
@@ -949,14 +1017,39 @@ function DrugSearch({addToMyDrugs}){
               </div>
             ))}
           </div>
-          {selected.nhiChapter&&(
-            <div style={{background:'#f0f7ff',border:`1px solid ${C.primary}33`,borderRadius:8,
-              padding:'8px 12px',marginBottom:12,fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
-              <span><b>NHI Chapter:</b> {selected.nhiChapter}</span>
-              {selected.combination&&<span><b>Type:</b> {selected.combination}</span>}
-              {selected.drugClass&&<span><b>Class:</b> {drugClassLabel(selected.drugClass)||selected.drugClass}</span>}
-            </div>
-          )}
+          {/* NHI coverage status row */}
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+            <span style={{
+              fontSize:12,fontWeight:700,padding:'4px 10px',borderRadius:7,
+              background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'
+            }}>{T.nhiCovered}</span>
+            {selected.nhiChapter&&selected.nhiPdf?(
+              <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${selected.nhiPdf}`}
+                target="_blank" rel="noreferrer"
+                style={{
+                  fontSize:12,fontWeight:700,padding:'4px 10px',borderRadius:7,textDecoration:'none',
+                  background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
+                }}>
+                {T.reimbCond}{selected.nhiChapter} ↗
+              </a>
+            ):selected.nhiChapter?(
+              <span style={{
+                fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,
+                background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
+              }}>{T.reimbCond}{selected.nhiChapter}</span>
+            ):(
+              <span style={{
+                fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,
+                background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.75
+              }}>{T.noReimbCond}</span>
+            )}
+            {selected.combination&&(
+              <span style={{
+                fontSize:12,fontWeight:600,padding:'4px 10px',borderRadius:7,
+                background:'#fef3c7',color:'#92400e',border:'1px solid #fbbf2433'
+              }}>{selected.combination}</span>
+            )}
+          </div>
           {!isStaff&&(
             <div style={{background:'#f8fafc',border:`1px dashed ${C.border}`,borderRadius:8,padding:'10px 12px',
               marginBottom:12,fontSize:12,color:C.muted,display:'flex',alignItems:'center',gap:8}}>
@@ -979,6 +1072,14 @@ function DrugSearch({addToMyDrugs}){
             <button onClick={()=>addToMyDrugs && addToMyDrugs(selected)}
               style={{flex:'1 1 150px',padding:'10px',borderRadius:8,border:'none',
                 background:C.primary,fontSize:13,fontWeight:700,cursor:'pointer',color:'#fff'}}>{T.addMyDrugs}</button>
+            {isStaff&&(
+              <button onClick={()=>window.dispatchEvent(new CustomEvent('send-to-ddi',{detail:selected}))}
+                style={{flex:'1 1 120px',padding:'10px',borderRadius:8,
+                  border:`1px solid #f59e0b`,background:'#fffbeb',
+                  fontSize:13,fontWeight:600,cursor:'pointer',color:'#92400e'}}>
+                ⚠ {T.checkDDI}
+              </button>
+            )}
             <button onClick={()=>setReportDrug(selected)}
               style={{flex:'1 1 120px',padding:'10px',borderRadius:8,border:`1px solid ${C.danger}44`,
                 background:'#fff5f5',fontSize:13,fontWeight:600,cursor:'pointer',color:C.danger}}>{T.reportBtn}</button>
@@ -1068,12 +1169,17 @@ function ConceptCard({concept, onClick}){
 }
 
 // ── Ingredient Lookup — Brand Row ─────────────────────────────────────────
-function BrandRow({brand, isStaff, addToMyDrugs}){
+function BrandRow({brand, isStaff, addToMyDrugs, priceLow, priceHigh}){
   const [added,setAdded]=useState(false)
   const [imgOk,setImgOk]=useState(true)
   const imgUrl=getDrugImage(brand.licId)
   const {T}=useLang()
   function handleAdd(){ setAdded(true); addToMyDrugs&&addToMyDrugs(brand) }
+  function sendToDDI(e){ e.stopPropagation(); window.dispatchEvent(new CustomEvent('send-to-ddi',{detail:brand})) }
+  const p=parseFloat(brand.price||0)
+  const priceBand=isStaff&&p&&priceHigh
+    ? p<=priceLow?'low':p<=priceHigh?'mid':'high'
+    : null
   return(
     <div style={{
       display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',
@@ -1104,6 +1210,15 @@ function BrandRow({brand, isStaff, addToMyDrugs}){
           {isStaff&&brand.price&&(
             <><span>·</span><span style={{color:C.primary,fontWeight:700}}>NT$ {brand.price}</span></>
           )}
+          {priceBand&&(
+            <span style={{
+              fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,marginLeft:2,
+              background:priceBand==='low'?'#dcfce7':priceBand==='mid'?'#fef9c3':'#fee2e2',
+              color:priceBand==='low'?'#166534':priceBand==='mid'?'#854d0e':'#991b1b',
+            }}>
+              {priceBand==='low'?T.priceCheap:priceBand==='mid'?T.priceMid:T.priceHigh}
+            </span>
+          )}
         </div>
         <div style={{display:'flex',gap:10,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
           <span style={{fontSize:10,color:'#94a3b8'}}>NHI: {brand.id}</span>
@@ -1124,13 +1239,393 @@ function BrandRow({brand, isStaff, addToMyDrugs}){
             </a>
           )}
         </div>
+        <div style={{display:'flex',gap:6,marginTop:5,flexWrap:'wrap',alignItems:'center'}}>
+          <span style={{
+            fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5,
+            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'
+          }}>{T.nhiCovered}</span>
+          {brand.nhiChapter&&brand.nhiPdf?(
+            <a href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
+              target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}
+              style={{
+                fontSize:10,fontWeight:700,padding:'2px 7px',borderRadius:5,textDecoration:'none',
+                background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
+              }}>
+              {T.reimbCond}{brand.nhiChapter} ↗
+            </a>
+          ):brand.nhiChapter?(
+            <span style={{
+              fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
+              background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'
+            }}>{T.reimbCond}{brand.nhiChapter}</span>
+          ):(
+            <span style={{
+              fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:5,
+              background:'#f0fdf4',color:'#4ade80',border:'1px solid #bbf7d0',opacity:.7
+            }}>{T.noReimbCond}</span>
+          )}
+        </div>
       </div>
-      <button onClick={handleAdd} disabled={added}
-        style={{padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',
-          cursor:added?'default':'pointer',flexShrink:0,marginTop:2,
-          background:added?'#dcfce7':C.primary,color:added?'#166534':'#fff'}}>
-        {added?T.addedBtn:T.addBtn}
-      </button>
+      <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0,marginTop:2}}>
+        <button onClick={handleAdd} disabled={added}
+          style={{padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,border:'none',
+            cursor:added?'default':'pointer',
+            background:added?'#dcfce7':C.primary,color:added?'#166534':'#fff'}}>
+          {added?T.addedBtn:T.addBtn}
+        </button>
+        {isStaff&&(
+          <button onClick={sendToDDI}
+            style={{padding:'5px 10px',borderRadius:8,fontSize:11,fontWeight:700,
+              border:`1px solid #f59e0b`,background:'#fffbeb',color:'#92400e',cursor:'pointer'}}>
+            ⚠ {T.checkDDI}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── ATC L2 (3-char) class names ───────────────────────────────────────────
+const ATC_L2={
+  A01:'Stomatological',A02:'Acid-related disorders',A03:'Functional GI',A04:'Antiemetics',
+  A05:'Bile & liver',A06:'Laxatives',A07:'Antidiarrheals',A08:'Antiobesity',A09:'Digestives',
+  A10:'Diabetes',A11:'Vitamins',A12:'Mineral supplements',A14:'Anabolic agents',A16:'Other alimentary',
+  B01:'Antithrombotics',B02:'Antihemorrhagics',B03:'Antianemics',B05:'Blood substitutes',B06:'Other hematological',
+  C01:'Cardiac therapy',C02:'Antihypertensives',C03:'Diuretics',C04:'Peripheral vasodilators',
+  C05:'Vasoprotectives',C07:'Beta blockers',C08:'Ca-channel blockers',C09:'Renin-angiotensin',C10:'Lipid-modifying',
+  D01:'Antifungals (topical)',D02:'Emollients',D03:'Wound healing',D04:'Antipruritics',D05:'Antipsoriatics',
+  D06:'Dermal antibiotics',D07:'Topical corticosteroids',D08:'Antiseptics',D10:'Anti-acne',D11:'Other dermatologicals',
+  G01:'Gynecological antiinfectives',G02:'Other gynecologicals',G03:'Sex hormones',G04:'Urologicals',
+  H01:'Pituitary hormones',H02:'Systemic corticosteroids',H03:'Thyroid therapy',H04:'Pancreatic hormones',H05:'Calcium homeostasis',
+  J01:'Systemic antibacterials',J02:'Systemic antimycotics',J04:'Antimycobacterials',J05:'Systemic antivirals',J06:'Immune sera',J07:'Vaccines',
+  L01:'Antineoplastics',L02:'Endocrine therapy',L03:'Immunostimulants',L04:'Immunosuppressants',
+  M01:'Antiinflammatory & antirheumatic',M02:'Topical joint/muscle',M03:'Muscle relaxants',M04:'Antigout',M05:'Bone diseases',
+  N01:'Anesthetics',N02:'Analgesics',N03:'Antiepileptics',N04:'Anti-Parkinson',N05:'Psycholeptics',N06:'Psychoanaleptics',N07:'Other CNS',
+  P01:'Antiprotozoals',P02:'Anthelmintics',P03:'Ectoparasiticides',
+  R01:'Nasal preparations',R02:'Throat preparations',R03:'Obstructive airway diseases',R05:'Cough & cold',R06:'Systemic antihistamines',
+  S01:'Ophthalmologicals',S02:'Otologicals',S03:'Ophthalmo-otologicals',
+  V03:'All other therapeutic',V04:'Diagnostic agents',V06:'General nutrients',V08:'Contrast media',
+}
+
+// ── ATC Browser (RxClass-style) ───────────────────────────────────────────
+function ATCBrowser({addToMyDrugs, nhiCount}){
+  const [path,setPath]=useState([])          // e.g. ['N','N05','N05A','N05AH']
+  const [selectedConcept,setSelectedConcept]=useState(null)
+  const {T}=useLang()
+  const {isStaff}=useAuth()
+
+  const prefix=path.length>0?path[path.length-1]:null
+
+  // Build child groups for the current prefix level
+  const childGroups=useMemo(()=>{
+    // at 5-char prefix we switch to concept/brand view — no more sub-groups
+    if(prefix&&prefix.length>=5) return []
+    const nextLen=!prefix?1:prefix.length===1?3:prefix.length===3?4:5
+    const map=new Map()
+    for(const d of DRUGS_LIVE){
+      const atc=(d.atc||'').toUpperCase()
+      if(prefix&&!atc.startsWith(prefix)) continue
+      if(!atc) continue
+      const key=atc.slice(0,nextLen)
+      if(key.length<nextLen) continue
+      if(!map.has(key)) map.set(key,{code:key,count:0,ingr:new Set()})
+      const g=map.get(key)
+      g.count++
+      if(g.ingr.size<3) g.ingr.add(d.ingredient)
+    }
+    return [...map.values()].sort((a,b)=>b.count-a.count).map(g=>({...g,ingr:[...g.ingr]}))
+  },[prefix,nhiCount])
+
+  // At 5-char level: concept groups (ingredient-grouped)
+  const concepts=useMemo(()=>{
+    if(!prefix||prefix.length!==5) return []
+    return browseByATC(prefix)
+  },[prefix,nhiCount])
+
+  function drillDown(code){setPath(p=>[...p,code]);setSelectedConcept(null)}
+  function goBack(){setPath(p=>p.slice(0,-1));setSelectedConcept(null)}
+
+  const getName=code=>{
+    if(code.length===1) return ATC_CATEGORIES[code]||code
+    if(code.length===3) return ATC_L2[code]||code
+    return code
+  }
+
+  return(
+    <div>
+      {/* Breadcrumb */}
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+        <button onClick={()=>{setPath([]);setSelectedConcept(null)}}
+          style={{fontSize:12,fontWeight:700,color:C.primary,background:'none',border:'none',cursor:'pointer',padding:0}}>
+          {T.atcBrowseTitle}
+        </button>
+        {path.map((seg,i)=>(
+          <React.Fragment key={seg}>
+            <span style={{fontSize:12,color:C.muted}}>›</span>
+            <button onClick={()=>{setPath(p=>p.slice(0,i+1));setSelectedConcept(null)}}
+              style={{fontSize:12,fontWeight:700,color:C.primary,background:'none',border:'none',cursor:'pointer',padding:0}}>
+              {seg}
+            </button>
+          </React.Fragment>
+        ))}
+        {selectedConcept&&<><span style={{fontSize:12,color:C.muted}}>›</span>
+          <span style={{fontSize:12,color:C.muted,fontWeight:600}}>{selectedConcept.ingredient}</span></>}
+      </div>
+
+      {/* Back button */}
+      {(path.length>0||selectedConcept)&&(
+        <button onClick={()=>selectedConcept?setSelectedConcept(null):goBack()}
+          style={{background:'none',border:'none',color:C.primary,cursor:'pointer',
+            fontSize:13,fontWeight:700,marginBottom:12,padding:0}}>
+          {T.backTree}
+        </button>
+      )}
+
+      {/* Selected concept → brand list */}
+      {selectedConcept?(
+        <div>
+          <div style={{background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',border:`1px solid ${C.primary}33`,
+            borderRadius:14,padding:'14px 16px',marginBottom:12}}>
+            <div style={{fontSize:22,fontWeight:900,marginBottom:2}}>{selectedConcept.ingredient}</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{T.ingredientRoot}</div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {selectedConcept.atc&&(
+                <span style={{fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
+                  background:'#dbeafe',color:'#1d4ed8',border:'1px solid #bfdbfe'}}>
+                  ATC: {selectedConcept.atc}
+                </span>
+              )}
+              <span style={{fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
+                background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>
+                {selectedConcept.brandCount} {T.nhiBrands}
+              </span>
+            </div>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {selectedConcept.brands.map(b=>(
+              <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}/>
+            ))}
+          </div>
+        </div>
+      ):(
+        <>
+          {/* No-selection intro */}
+          {!prefix&&(
+            <Card style={{color:C.muted,padding:'18px 20px',marginBottom:14}}>
+              <div style={{fontSize:13,lineHeight:1.7}}>{T.atcBrowseDesc}</div>
+            </Card>
+          )}
+
+          {/* Sub-group grid */}
+          {childGroups.length>0&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {childGroups.map(g=>(
+                <Card key={g.code} style={{cursor:'pointer',padding:'12px 14px'}} onClick={()=>drillDown(g.code)}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:800,fontSize:14,color:C.primary,marginBottom:2}}>{g.code}</div>
+                      <div style={{fontSize:11,color:C.text,fontWeight:600,lineHeight:1.3}}>
+                        {getName(g.code)}
+                      </div>
+                      {g.ingr.length>0&&(
+                        <div style={{fontSize:10,color:C.muted,marginTop:4,lineHeight:1.4}}>
+                          {g.ingr.join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                    <span style={{fontSize:11,fontWeight:800,padding:'3px 8px',borderRadius:8,
+                      background:'#dcfce7',color:'#166534',flexShrink:0}}>
+                      {g.count}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* 5-char level → concept cards */}
+          {concepts.length>0&&(
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {concepts.map(c=>(
+                <ConceptCard key={c.ingredient} concept={c} onClick={()=>setSelectedConcept(c)}/>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Bulk Search (RxMix-style) ─────────────────────────────────────────────
+function BulkSearch(){
+  const [text,setText]=useState('')
+  const [rows,setRows]=useState(null)
+  const [viewConcept,setViewConcept]=useState(null)
+  const {T}=useLang()
+  const {isStaff}=useAuth()
+
+  function runBulk(){
+    const lines=text.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean)
+    const results=lines.map(line=>{
+      const matches=searchByIngredient(line)
+      if(!matches.length) return {input:line,concept:null}
+      return {input:line,concept:matches[0]}
+    })
+    setRows(results)
+  }
+
+  function exportBulkCSV(){
+    if(!rows) return
+    const header='Input,Ingredient,ATC,Brands'
+    const body=rows.map(r=>
+      `"${r.input}","${r.concept?.ingredient||''}","${r.concept?.atc||''}","${r.concept?.brandCount||0}"`
+    ).join('\n')
+    const blob=new Blob([header+'\n'+body],{type:'text/csv;charset=utf-8;'})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a'); a.href=url; a.download='bulk_lookup.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  if(viewConcept){
+    return(
+      <div>
+        <button onClick={()=>setViewConcept(null)}
+          style={{background:'none',border:'none',color:C.primary,cursor:'pointer',
+            fontSize:13,fontWeight:700,marginBottom:12,padding:0}}>
+          {T.backTree}
+        </button>
+        <div style={{background:'linear-gradient(135deg,#f0fdf4,#ecfeff)',
+          border:`1px solid ${C.primary}33`,borderRadius:14,padding:'14px 16px',marginBottom:12}}>
+          <div style={{fontSize:22,fontWeight:900,marginBottom:2}}>{viewConcept.ingredient}</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:8}}>{T.ingredientRoot}</div>
+          <span style={{fontSize:12,fontWeight:800,padding:'3px 12px',borderRadius:8,
+            background:'#dcfce7',color:'#166534',border:'1px solid #bbf7d0'}}>
+            {viewConcept.brandCount} {T.nhiBrands}
+          </span>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {viewConcept.brands.map(b=>(
+            <BrandRow key={b.id} brand={b} isStaff={isStaff}/>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return(
+    <div>
+      <Card style={{marginBottom:12,padding:'18px 20px'}}>
+        <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>{T.bulkTitle}</div>
+        <textarea
+          value={text} onChange={e=>setText(e.target.value)}
+          placeholder={T.bulkPlaceholder}
+          rows={5}
+          style={{width:'100%',padding:'10px 12px',fontSize:13,borderRadius:10,fontFamily:'inherit',
+            border:`1.5px solid ${C.border}`,outline:'none',resize:'vertical',
+            boxSizing:'border-box',lineHeight:1.6}}/>
+        <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
+          <button onClick={runBulk} disabled={!text.trim()}
+            style={{padding:'9px 20px',borderRadius:8,background:C.primary,color:'#fff',
+              border:'none',fontWeight:700,fontSize:13,cursor:text.trim()?'pointer':'default',
+              opacity:text.trim()?1:.5}}>
+            {T.bulkRun}
+          </button>
+          {rows&&(
+            <button onClick={exportBulkCSV}
+              style={{padding:'9px 14px',borderRadius:8,background:'#fff',
+                border:`1px solid ${C.border}`,fontWeight:700,fontSize:13,cursor:'pointer',color:C.text}}>
+              {T.exportCSV}
+            </button>
+          )}
+          <button onClick={()=>{setText('');setRows(null)}}
+            style={{padding:'9px 14px',borderRadius:8,background:'#f8fafc',
+              border:`1px solid ${C.border}`,fontWeight:600,fontSize:13,cursor:'pointer',color:C.muted}}>
+            {T.bulkClear}
+          </button>
+        </div>
+      </Card>
+
+      {rows&&(
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <thead>
+              <tr style={{background:'#f1f5f9',textAlign:'left'}}>
+                {[T.bulkColInput,T.bulkColIngredient,T.bulkColAtc,T.bulkColBrands,''].map(h=>(
+                  <th key={h} style={{padding:'9px 12px',fontWeight:700,
+                    borderBottom:`2px solid ${C.border}`,color:C.text,whiteSpace:'nowrap'}}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r,i)=>(
+                <tr key={i} style={{borderBottom:`1px solid ${C.border}`,
+                  background:i%2?'#fafafa':'#fff'}}>
+                  <td style={{padding:'9px 12px',fontWeight:600}}>{r.input}</td>
+                  <td style={{padding:'9px 12px',color:r.concept?C.text:C.muted}}>
+                    {r.concept?.ingredient||T.bulkNoMatch}
+                  </td>
+                  <td style={{padding:'9px 12px'}}>
+                    {r.concept?.atc&&(
+                      <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:6,
+                        background:'#dbeafe',color:'#1d4ed8'}}>
+                        {r.concept.atc}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{padding:'9px 12px',fontWeight:700,color:C.primary}}>
+                    {r.concept?.brandCount||'—'}
+                  </td>
+                  <td style={{padding:'9px 12px'}}>
+                    {r.concept&&(
+                      <button onClick={()=>setViewConcept(r.concept)}
+                        style={{padding:'4px 10px',borderRadius:6,background:C.primary,
+                          color:'#fff',border:'none',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                        {T.viewBrands}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Lookup Page — mode switcher wrapping Search / Browse / Bulk ───────────
+function LookupPage({addToMyDrugs,ocrQuery,nhiCount}){
+  const [mode,setMode]=useState('search')
+  const {T}=useLang()
+  const modes=[
+    {id:'search',label:T.modeSearch,icon:'🔍'},
+    {id:'browse',label:T.modeBrowse,icon:'🗂'},
+    {id:'bulk',label:T.modeBulk,icon:'📋'},
+  ]
+  return(
+    <div>
+      <div style={{display:'flex',gap:4,background:'#f1f5f9',borderRadius:10,
+        padding:4,marginBottom:16}}>
+        {modes.map(m=>(
+          <button key={m.id} onClick={()=>setMode(m.id)}
+            style={{
+              flex:1,padding:'8px 0',borderRadius:7,border:'none',fontSize:12,
+              fontWeight:700,cursor:'pointer',transition:'all .15s',
+              background:mode===m.id?'#fff':'transparent',
+              color:mode===m.id?C.primary:C.muted,
+              boxShadow:mode===m.id?'0 1px 4px rgba(0,0,0,.10)':'none',
+            }}>
+            {m.icon} {m.label}
+          </button>
+        ))}
+      </div>
+      {mode==='search'&&<IngredientLookup addToMyDrugs={addToMyDrugs} ocrQuery={ocrQuery}/>}
+      {mode==='browse'&&<ATCBrowser addToMyDrugs={addToMyDrugs} nhiCount={nhiCount}/>}
+      {mode==='bulk'&&<BulkSearch/>}
     </div>
   )
 }
@@ -1180,10 +1675,33 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
       :a.nameEN.localeCompare(b.nameEN))
   :[]
 
+  const {priceLow,priceHigh}=useMemo(()=>{
+    if(!selected) return {priceLow:0,priceHigh:0}
+    const prices=selected.brands.map(b=>parseFloat(b.price||0)).filter(p=>p>0).sort((a,b)=>a-b)
+    if(prices.length<3) return {priceLow:prices[0]||0,priceHigh:prices[prices.length-1]||0}
+    return {
+      priceLow: prices[Math.floor(prices.length*0.33)],
+      priceHigh: prices[Math.floor(prices.length*0.66)],
+    }
+  },[selected])
+
   function copyBrands(){
     const txt=filteredBrands.map(b=>`${b.nameEN}${b.strength?' ('+b.strength+')':''}`).join('\n')
     navigator.clipboard?.writeText(txt)
     setCopyDone(true); setTimeout(()=>setCopyDone(false),2000)
+  }
+  function exportCSV(){
+    const header='NHI_Code,Brand_EN,Brand_ZH,Ingredient,ATC,Form,Strength,Manufacturer,Price'
+    const body=filteredBrands.map(b=>
+      [b.id,b.nameEN,b.nameZH,b.ingredient,b.atc,b.form,b.strength,b.manufacturer,b.price]
+        .map(v=>`"${(v||'').replace(/"/g,'""')}"`)
+        .join(',')
+    ).join('\n')
+    const blob=new Blob(['﻿'+header+'\n'+body],{type:'text/csv;charset=utf-8;'})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a')
+    a.href=url; a.download=`${selected.ingredient.replace(/\s+/g,'_')}.csv`; a.click()
+    URL.revokeObjectURL(url)
   }
 
   return(
@@ -1315,6 +1833,10 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
               fontWeight:700,cursor:'pointer',
               background:copyDone?'#dcfce7':'#fff',color:copyDone?'#166534':C.muted
             }}>{copyDone?T.copied:T.copyAllNames}</button>
+            <button onClick={exportCSV} style={{
+              padding:'5px 10px',borderRadius:7,border:`1px solid ${C.border}`,fontSize:12,
+              fontWeight:700,cursor:'pointer',background:'#fff',color:C.muted
+            }}>{T.exportCSV}</button>
             <span style={{fontSize:11,color:C.muted,marginLeft:'auto'}}>
               {filteredBrands.length}/{selected.brandCount}
             </span>
@@ -1323,7 +1845,8 @@ function IngredientLookup({addToMyDrugs, ocrQuery}){
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {filteredBrands.length>0
               ?filteredBrands.map(b=>(
-                <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}/>
+                <BrandRow key={b.id} brand={b} isStaff={isStaff} addToMyDrugs={addToMyDrugs}
+                  priceLow={priceLow} priceHigh={priceHigh}/>
               ))
               :<Card style={{textAlign:'center',color:C.muted,padding:32}}>
                 {T.noBrandsMatch}
@@ -2326,8 +2849,44 @@ function InteractionBanner({meds}){
 // ── My Medications ─────────────────────────────────────────────────────────
 function MyMeds({meds,setMeds}){
   const {isStaff}=useAuth()
+  const {T}=useLang()
   const toggle=id=>setMeds(p=>p.map(m=>m.id===id?{...m,reminderOn:!m.reminderOn}:m))
   const remove=id=>setMeds(p=>p.filter(m=>m.id!==id))
+
+  function printMeds(){
+    const rows=meds.map(m=>`
+      <tr>
+        <td><b>${m.ingredient}</b><br/><span style="color:#6b7280;font-size:12px">${m.nameEN}</span></td>
+        <td>${dosageFormEN(m.form)||m.form} ${m.strength}</td>
+        <td>${m.times.join('、')}</td>
+        <td>${m.reminderOn?'✔':'—'}</td>
+      </tr>`).join('')
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/>
+      <title>${T.printTitle}</title>
+      <style>
+        body{font-family:sans-serif;padding:32px;color:#111;max-width:700px;margin:0 auto}
+        h2{font-size:20px;margin-bottom:4px}
+        p.sub{color:#6b7280;font-size:13px;margin:0 0 20px}
+        table{width:100%;border-collapse:collapse;font-size:14px}
+        th{background:#f1f5f9;padding:9px 12px;text-align:left;font-weight:700;border-bottom:2px solid #e2e8f0}
+        td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+        @media print{body{padding:16px}}
+      </style></head><body>
+      <h2>💊 ${T.printTitle}</h2>
+      <p class="sub">${new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'})} &nbsp;·&nbsp; ${meds.length} ${T.drugCount}</p>
+      <table>
+        <thead><tr>
+          <th>${T.activeIngredient}</th><th>${T.dosageLabel}</th>
+          <th>⏰ Times</th><th>Reminder</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="margin-top:28px;font-size:11px;color:#94a3b8">RxNorm Taiwan · NHI ${DATA_VERSION.date} · For personal reference only</p>
+      <script>window.onload=()=>window.print()<\/script>
+      </body></html>`
+    const w=window.open('','_blank','width=780,height=600')
+    w.document.write(html); w.document.close()
+  }
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -2369,6 +2928,14 @@ function MyMeds({meds,setMeds}){
           </div>
         </Card>
       ))}
+      {meds.length>0&&(
+        <button onClick={printMeds}
+          style={{width:'100%',padding:'11px',borderRadius:10,
+            border:`1px solid ${C.border}`,background:'#f8fafc',
+            fontSize:13,fontWeight:700,cursor:'pointer',color:C.text}}>
+          {T.printMeds}
+        </button>
+      )}
       <LockedFeature minRole="staff">
         <Card style={{background:C.staffBg,border:`1px solid #fbbf24`}}>
           <div style={{fontWeight:600,fontSize:14,marginBottom:8}}>📤 Export Medication List (Staff)</div>
@@ -2690,7 +3257,7 @@ const SEVERITY_CFG = {
   LOW:      { color:'#16a34a', bg:'#f0fdf4', border:'#86efac', icon:'🟢', label:'LOW' },
 }
 
-function DrugInteractionCenter(){
+function DrugInteractionCenter({preset}){
   const [drugA,setDrugA]=useState('')
   const [drugB,setDrugB]=useState('')
   const [resultsA,setResultsA]=useState([])
@@ -2710,6 +3277,10 @@ function DrugInteractionCenter(){
     }
     document.addEventListener('mousedown',h); return()=>document.removeEventListener('mousedown',h)
   },[])
+
+  useEffect(()=>{
+    if(preset){ setSelA(preset); setDrugA(preset.nameEN||preset.ingredient||''); setAlerts([]); setChecked(false) }
+  },[preset])
 
   function typeA(q){ setDrugA(q); setSelA(null); const r=q.length>=1?searchDrugs(q):[]; setResultsA(r); setShowA(q.length>=1&&r.length>0) }
   function typeB(q){ setDrugB(q); setSelB(null); const r=q.length>=1?searchDrugs(q):[]; setResultsB(r); setShowB(q.length>=1&&r.length>0) }
@@ -3173,6 +3744,7 @@ function AppInner(){
   const [nhiCount,setNhiCount]=useState(0)
   const [darkMode,setDarkMode]=useState(false)
   const [language,setLanguage]=useState('zhTW')
+  const [ddiPreset,setDdiPreset]=useState(null)
   const [toast,setToast]=useState('')
   const [myDrugs,setMyDrugs]=useState([
     {...DRUGS[6],times:['09:00'],reminderOn:true},
@@ -3192,9 +3764,15 @@ function AppInner(){
   },[])
 
   useEffect(()=>{
-  const openSignup=()=>setShowSignup(true)
-  window.addEventListener('open-signup',openSignup)
-  return()=>window.removeEventListener('open-signup',openSignup)
+    const openSignup=()=>setShowSignup(true)
+    window.addEventListener('open-signup',openSignup)
+    return()=>window.removeEventListener('open-signup',openSignup)
+  },[])
+
+  useEffect(()=>{
+    function h(e){ setDdiPreset(e.detail); setTab('interact') }
+    window.addEventListener('send-to-ddi',h)
+    return()=>window.removeEventListener('send-to-ddi',h)
   },[])
 
 
@@ -3323,13 +3901,18 @@ function AppInner(){
                 {T.appName}
               </div>
 
-              <div style={{
-                fontSize:11,
-                color:theme.primary,
-                fontWeight:700,
-                marginTop:3
-              }}>
-                {pageTitle}
+              <div style={{display:'flex',alignItems:'center',gap:6,marginTop:3,flexWrap:'wrap'}}>
+                <span style={{fontSize:11,color:theme.primary,fontWeight:700}}>
+                  {pageTitle}
+                </span>
+                {nhiCount>0&&(
+                  <span style={{
+                    fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                    background:'#dcfce7',color:'#166534',letterSpacing:.3
+                  }}>
+                    {T.nhiDataLabel} {DATA_VERSION.date}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -3488,8 +4071,8 @@ function AppInner(){
         }}>
           {tab==='search' && <DrugSearch addToMyDrugs={addToMyDrugs}/>}
           {tab==='scan' && (<ScanRx addToMyDrugs={addToMyDrugs}/>)}
-          {tab==='lookup' && <IngredientLookup addToMyDrugs={addToMyDrugs}/>}
-          {tab==='interact' && <DrugInteractionCenter/>}
+          {tab==='lookup' && <LookupPage addToMyDrugs={addToMyDrugs} nhiCount={nhiCount}/>}
+          {tab==='interact' && <DrugInteractionCenter preset={ddiPreset}/>}
           {tab==='admin' && <AdminDashboard/>}
           {tab==='settings' && (
             <SettingsPage
