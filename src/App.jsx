@@ -3030,6 +3030,15 @@ function BrandDetailModal({
     };
   }, []);
 
+  // Esc closes the sheet — but let an open image lightbox consume Esc first.
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape" && !lightbox) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox, onClose]);
+
   function handleAdd() {
     setAdded(true);
     addToMyDrugs && addToMyDrugs(brand);
@@ -6222,7 +6231,7 @@ function ScanRx({ addToMyDrugs }) {
         {ocr.previewUrl && (
           <img
             src={ocr.previewUrl}
-            alt="preview"
+            alt="Prescription image being scanned"
             style={{
               maxHeight: 100,
               maxWidth: "100%",
@@ -6507,7 +6516,7 @@ function ScanRx({ addToMyDrugs }) {
           {ocr.previewUrl && (
             <img
               src={ocr.previewUrl}
-              alt="scan"
+              alt="Scanned prescription"
               style={{
                 maxHeight: 76,
                 maxWidth: 86,
