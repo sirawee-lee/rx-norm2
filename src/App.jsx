@@ -118,8 +118,10 @@ const LANG = {
     nhiBrands: "NHI brands",
     brandsLabel: "brands",
     moreCount: "more",
+    allStrengths: "All strengths",
     allForms: "All forms",
     allClasses: "All classes",
+    showingOf: (n, t) => `${n} / ${t}`,
     sortByPrice: "Price ↑",
     sortByName: "Name A-Z",
     copyAllNames: "Copy all names",
@@ -245,8 +247,10 @@ const LANG = {
     nhiBrands: "個健保品牌",
     brandsLabel: "個品牌",
     moreCount: "個更多",
+    allStrengths: "所有劑量",
     allForms: "所有劑型",
     allClasses: "所有藥品分類",
+    showingOf: (n, t) => `${n} / ${t}`,
     sortByPrice: "價格低→高",
     sortByName: "名稱 A-Z",
     copyAllNames: "複製所有品名",
@@ -3811,10 +3815,98 @@ const ATC_L2 = {
   V08: "Contrast media",
 };
 
+// ── Filtered brand list with strength / form dropdowns ───────────────────
+function FilteredBrandList({ brands, isStaff, addToMyDrugs, onCardClick, imgCount }) {
+  const { T } = useLang();
+  const [strength, setStrength] = useState("all");
+  const [form, setForm] = useState("all");
+  const [cls, setCls] = useState("all");
+
+  const strengths = useMemo(() => {
+    const vals = [...new Set(brands.map((b) => b.strength).filter(Boolean))];
+    return vals.sort((a, b) => parseFloat(a) - parseFloat(b));
+  }, [brands]);
+
+  const forms = useMemo(() => {
+    const vals = [...new Set(brands.map((b) => dosageFormEN(b.form) || b.form).filter(Boolean))];
+    return vals.sort();
+  }, [brands]);
+
+  const classes = useMemo(() => {
+    const vals = [...new Set(brands.map((b) => b.drugClass).filter(Boolean))];
+    return vals.sort();
+  }, [brands]);
+
+  const filtered = useMemo(() => {
+    return brands.filter((b) => {
+      if (strength !== "all" && b.strength !== strength) return false;
+      if (form !== "all" && (dosageFormEN(b.form) || b.form) !== form) return false;
+      if (cls !== "all" && b.drugClass !== cls) return false;
+      return true;
+    });
+  }, [brands, strength, form, cls]);
+
+  const showFilters = brands.length > 6;
+  const selectStyle = {
+    padding: "5px 10px",
+    borderRadius: 8,
+    border: `1.5px solid ${C.border}`,
+    fontSize: 12,
+    fontWeight: 600,
+    background: "#f8fafc",
+    color: C.text,
+    cursor: "pointer",
+    outline: "none",
+  };
+
+  return (
+    <div>
+      {showFilters && (strengths.length > 1 || forms.length > 1 || classes.length > 1) && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {strengths.length > 1 && (
+            <select value={strength} onChange={(e) => setStrength(e.target.value)} style={selectStyle}>
+              <option value="all">{T.allStrengths}</option>
+              {strengths.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          {forms.length > 1 && (
+            <select value={form} onChange={(e) => setForm(e.target.value)} style={selectStyle}>
+              <option value="all">{T.allForms}</option>
+              {forms.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          )}
+          {classes.length > 1 && (
+            <select value={cls} onChange={(e) => setCls(e.target.value)} style={selectStyle}>
+              <option value="all">{T.allClasses}</option>
+              {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          <span style={{ fontSize: 11, color: C.muted }}>
+            {T.showingOf(filtered.length, brands.length)}
+          </span>
+        </div>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.map((b) => (
+          <BrandRow
+            key={b.id}
+            brand={b}
+            isStaff={isStaff}
+            addToMyDrugs={addToMyDrugs}
+            onCardClick={onCardClick}
+            imgCount={imgCount}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── ATC Browser (RxClass-style) ───────────────────────────────────────────
 function ATCBrowser({ addToMyDrugs, nhiCount }) {
   const [path, setPath] = useState([]); // e.g. ['N','N05','N05A','N05AH']
   const [selectedConcept, setSelectedConcept] = useState(null);
+  const [detailBrand, setDetailBrand] = useState(null);
   const { T } = useLang();
   const { isStaff } = useAuth();
 
@@ -3871,6 +3963,16 @@ function ATCBrowser({ addToMyDrugs, nhiCount }) {
 
   return (
     <div>
+      {detailBrand && (
+        <BrandDetailModal
+          brand={detailBrand}
+          isStaff={isStaff}
+          addToMyDrugs={addToMyDrugs}
+          priceLow={0}
+          priceHigh={0}
+          onClose={() => setDetailBrand(null)}
+        />
+      )}
       {/* Breadcrumb */}
       <div
         style={{
@@ -4000,16 +4102,13 @@ function ATCBrowser({ addToMyDrugs, nhiCount }) {
               </span>
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {selectedConcept.brands.map((b) => (
-              <BrandRow
-                key={b.id}
-                brand={b}
-                isStaff={isStaff}
-                addToMyDrugs={addToMyDrugs}
-              />
-            ))}
-          </div>
+          <FilteredBrandList
+            brands={selectedConcept.brands}
+            isStaff={isStaff}
+            addToMyDrugs={addToMyDrugs}
+            onCardClick={setDetailBrand}
+            imgCount={nhiCount}
+          />
         </div>
       ) : (
         <>
@@ -4123,6 +4222,7 @@ function BulkSearch() {
   const [text, setText] = useState("");
   const [rows, setRows] = useState(null);
   const [viewConcept, setViewConcept] = useState(null);
+  const [detailBrand, setDetailBrand] = useState(null);
   const { T } = useLang();
   const { isStaff } = useAuth();
 
@@ -4162,6 +4262,16 @@ function BulkSearch() {
   if (viewConcept) {
     return (
       <div>
+        {detailBrand && (
+          <BrandDetailModal
+            brand={detailBrand}
+            isStaff={isStaff}
+            addToMyDrugs={null}
+            priceLow={0}
+            priceHigh={0}
+            onClose={() => setDetailBrand(null)}
+          />
+        )}
         <button
           onClick={() => setViewConcept(null)}
           style={{
@@ -4206,11 +4316,12 @@ function BulkSearch() {
             {viewConcept.brandCount} {T.nhiBrands}
           </span>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {viewConcept.brands.map((b) => (
-            <BrandRow key={b.id} brand={b} isStaff={isStaff} />
-          ))}
-        </div>
+        <FilteredBrandList
+          brands={viewConcept.brands}
+          isStaff={isStaff}
+          addToMyDrugs={null}
+          onCardClick={setDetailBrand}
+        />
       </div>
     );
   }
