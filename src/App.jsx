@@ -1799,6 +1799,27 @@ function AtcLink({ atc, label, chip = false, style }) {
   );
 }
 
+// NHI coverage pill: amber "conditional" when the brand carries an nhiChapter,
+// green "fully covered" otherwise. size "sm" for list rows, "md" for the sheet.
+function CoverageBadge({ chapter, size = "md" }) {
+  const { T } = useLang();
+  const dims =
+    size === "sm"
+      ? { fontSize: 10, padding: "2px 7px", borderRadius: 5 }
+      : { fontSize: 11, padding: "3px 10px", borderRadius: 6 };
+  const cfg = chapter
+    ? { background: "#fef3c7", color: "#92400e", border: "1px solid #fbbf24" }
+    : { background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0" };
+  return (
+    <span
+      style={{ fontWeight: 700, ...dims, ...cfg }}
+      title={chapter ? T.nhiConditionalTip : undefined}
+    >
+      {chapter ? T.nhiConditional : T.nhiCovered}
+    </span>
+  );
+}
+
 // ── Ingredient Lookup — Concept Card ─────────────────────────────────────
 function ConceptCard({ concept, onClick }) {
   const top = concept.brands.slice(0, 3);
@@ -3444,36 +3465,7 @@ function BrandDetailModal({
               borderBottom: `1px solid ${C.border}`,
             }}
           >
-            {brand.nhiChapter ? (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  background: "#fef3c7",
-                  color: "#92400e",
-                  border: "1px solid #fbbf24",
-                }}
-                title={T.nhiConditionalTip}
-              >
-                {T.nhiConditional}
-              </span>
-            ) : (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  background: "#dcfce7",
-                  color: "#166534",
-                  border: "1px solid #bbf7d0",
-                }}
-              >
-                {T.nhiCovered}
-              </span>
-            )}
+            <CoverageBadge chapter={brand.nhiChapter} size="md" />
             {brand.nhiChapter && brand.nhiPdf ? (
               <a
                 href={`https://info.nhi.gov.tw/api/INAE3000/INAE3000S01/getPDF?DurgFileName=${brand.nhiPdf}`}
@@ -3981,36 +3973,7 @@ function BrandRow({
               alignItems: "center",
             }}
           >
-            {brand.nhiChapter ? (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 7px",
-                  borderRadius: 5,
-                  background: "#fef3c7",
-                  color: "#92400e",
-                  border: "1px solid #fbbf24",
-                }}
-                title={T.nhiConditionalTip}
-              >
-                {T.nhiConditional}
-              </span>
-            ) : (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "2px 7px",
-                  borderRadius: 5,
-                  background: "#dcfce7",
-                  color: "#166534",
-                  border: "1px solid #bbf7d0",
-                }}
-              >
-                {T.nhiCovered}
-              </span>
-            )}
+            <CoverageBadge chapter={brand.nhiChapter} size="sm" />
             {brand.nhiChapter && (
               <span
                 style={{
