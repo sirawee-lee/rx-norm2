@@ -4752,7 +4752,7 @@ function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: 8,
               }}
             >
@@ -7990,7 +7990,7 @@ function DrugInteractionCenter({ preset }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
               gap: 12,
               marginBottom: 12,
             }}
@@ -8301,7 +8301,7 @@ function AdminDashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2,1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
             gap: 12,
           }}
         >
@@ -8321,7 +8321,11 @@ function AdminDashboard() {
 
         {stats && (
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
           >
             <Card>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
