@@ -70,11 +70,16 @@ export function searchDrugs(query) {
   const q = query.toLowerCase().trim()
   return DRUGS_LIVE
     .map(d => {
-      const fields = [d.nameEN, d.nameZH, d.ingredient, d.id, d.atc].join(' ').toLowerCase()
+      const indFields = [d.nameEN, d.nameZH, d.ingredient, d.id, d.atc]
+        .map(f => (f || '').toLowerCase().trim())
+      const combined = indFields.join(' ')
+      const words = combined.split(/\s+/)
       let score = 0
-      if (fields.includes(q)) score = q.length === fields.length ? 1.0 : 0.85
-      else if (fields.split(' ').some(w => w.startsWith(q))) score = 0.70
-      else if (fields.includes(q.slice(0, Math.max(3, q.length - 1)))) score = 0.50
+      if (indFields.includes(q))               score = 1.00  // exact whole-field match
+      else if (words.some(w => w === q))        score = 0.95  // exact word in any field
+      else if (combined.includes(q))            score = 0.85  // substring in combined
+      else if (words.some(w => w.startsWith(q))) score = 0.70 // word prefix
+      else if (combined.includes(q.slice(0, Math.max(3, q.length - 1)))) score = 0.50
       return { ...d, score }
     })
     .filter(d => d.score > 0)
