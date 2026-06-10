@@ -57,6 +57,12 @@ const LANG = {
     settings: "Settings",
     interact: "Drugs Interaction",
     admin: "Admin Panel",
+    admConfirmTitle: "Confirm entry?",
+    admConfirmMsg: "Add this unmatched scan to the dictionary as a confirmed match?",
+    admConfirmBtn: "Confirm",
+    admRejectTitle: "Reject entry?",
+    admRejectMsg: "Reject this unmatched scan and remove it from the review queue?",
+    admRejectBtn: "Reject",
     lookup: "Drug Lookup",
     signIn: "Sign In",
     signOut: "Sign Out",
@@ -198,6 +204,12 @@ const LANG = {
     settings: "設定",
     interact: "藥物交互作用",
     admin: "管理面板",
+    admConfirmTitle: "確認此項目？",
+    admConfirmMsg: "要將這筆未匹配的掃描結果確認並加入字典嗎？",
+    admConfirmBtn: "確認",
+    admRejectTitle: "拒絕此項目？",
+    admRejectMsg: "要拒絕這筆未匹配的掃描結果並從審核佇列移除嗎？",
+    admRejectBtn: "拒絕",
     lookup: "藥品查詢",
     signIn: "登入",
     signOut: "登出",
@@ -8020,6 +8032,7 @@ function DrugInteractionCenter({ preset }) {
 
 // ── Admin Dashboard ────────────────────────────────────────────────────────
 function AdminDashboard() {
+  const { T } = useLang();
   const [refreshing, setRefreshing] = useState(false);
   const [step, setStep] = useState(0);
   const [queue, setQueue] = useState([
@@ -8042,6 +8055,11 @@ function AdminDashboard() {
       created: "2026-05-08 08:05",
     },
   ]);
+  // { id, status: "confirmed" | "rejected" } awaiting confirmation
+  const [pendingAction, setPendingAction] = useState(null);
+  function applyAction({ id, status }) {
+    setQueue((p) => p.map((r) => (r.id === id ? { ...r, status } : r)));
+  }
   function run() {
     setRefreshing(true);
     setStep(1);
@@ -8092,8 +8110,22 @@ function AdminDashboard() {
         { label: "Drug Classes", value: "—", sub: "" },
       ];
 
+  const isReject = pendingAction?.status === "rejected";
   return (
     <LockedFeature minRole="admin">
+      {pendingAction && (
+        <ConfirmDialog
+          title={isReject ? T.admRejectTitle : T.admConfirmTitle}
+          message={isReject ? T.admRejectMsg : T.admConfirmMsg}
+          confirmLabel={isReject ? T.admRejectBtn : T.admConfirmBtn}
+          danger={isReject}
+          onConfirm={() => {
+            applyAction(pendingAction);
+            setPendingAction(null);
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div
           style={{
@@ -8346,11 +8378,7 @@ function AdminDashboard() {
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={() =>
-                        setQueue((p) =>
-                          p.map((r) =>
-                            r.id === q.id ? { ...r, status: "confirmed" } : r,
-                          ),
-                        )
+                        setPendingAction({ id: q.id, status: "confirmed" })
                       }
                       style={{
                         padding: "6px 12px",
@@ -8363,15 +8391,11 @@ function AdminDashboard() {
                         cursor: "pointer",
                       }}
                     >
-                      ✓ Confirm
+                      ✓ {T.admConfirmBtn}
                     </button>
                     <button
                       onClick={() =>
-                        setQueue((p) =>
-                          p.map((r) =>
-                            r.id === q.id ? { ...r, status: "rejected" } : r,
-                          ),
-                        )
+                        setPendingAction({ id: q.id, status: "rejected" })
                       }
                       style={{
                         padding: "6px 12px",
@@ -8384,7 +8408,7 @@ function AdminDashboard() {
                         cursor: "pointer",
                       }}
                     >
-                      ✗ Reject
+                      ✗ {T.admRejectBtn}
                     </button>
                   </div>
                 ) : (
