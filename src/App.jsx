@@ -158,6 +158,7 @@ const LANG = {
       "Paste drug names — one per line or comma-separated\ne.g. metformin, quetiapine, omeprazole",
     bulkRun: "Look up all",
     bulkEmptyHint: "Enter or paste drug names first",
+    dbLoading: "Loading drug database…",
     bulkClear: "Clear",
     bulkColInput: "Input",
     bulkColIngredient: "Matched Ingredient",
@@ -306,6 +307,7 @@ const LANG = {
       "貼上藥品名稱，每行一個或以逗號分隔\n例如：metformin, quetiapine, omeprazole",
     bulkRun: "開始查詢",
     bulkEmptyHint: "請先輸入或貼上藥品名稱",
+    dbLoading: "正在載入藥品資料庫…",
     bulkClear: "清除",
     bulkColInput: "輸入名稱",
     bulkColIngredient: "對應成分",
@@ -474,6 +476,25 @@ function Card({ children, style, onClick }) {
     >
       {children}
     </div>
+  );
+}
+
+// Spinning ring; size/color configurable. Uses the global .rx-spin keyframe.
+function Spinner({ size = 16, color = C.primary, width = 2 }) {
+  return (
+    <span
+      className="rx-spin"
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        border: `${width}px solid ${color}33`,
+        borderTopColor: color,
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
@@ -8628,6 +8649,7 @@ function AppInner() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [nhiCount, setNhiCount] = useState(0);
   const [imgCount, setImgCount] = useState(0);
+  const [dbLoading, setDbLoading] = useState(true);
   const [language, setLanguage] = useState("zhTW");
   const [ddiPreset, setDdiPreset] = useState(null);
   const [toast, setToast] = useState("");
@@ -8651,9 +8673,11 @@ function AppInner() {
   const T = LANG[language];
 
   useEffect(() => {
-    loadNHIDrugs().then((n) => {
-      if (n > 0) setNhiCount(n);
-    });
+    loadNHIDrugs()
+      .then((n) => {
+        if (n > 0) setNhiCount(n);
+      })
+      .finally(() => setDbLoading(false));
     loadDrugImages().then((n) => {
       if (n > 0) setImgCount(n);
     });
@@ -8897,21 +8921,42 @@ function AppInner() {
                   >
                     {pageTitle}
                   </span>
-                  {nhiCount > 0 && (
+                  {dbLoading ? (
                     <span
                       style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
                         fontSize: 9,
                         fontWeight: 700,
                         padding: "1px 6px",
                         borderRadius: 3,
-                        background: "#D6EDEB",
-                        color: C.primary,
+                        background: "#FEF3C7",
+                        color: "#92400E",
                         letterSpacing: 0.3,
-                        border: "1px solid #A8D0CE",
+                        border: "1px solid #FCD34D",
                       }}
                     >
-                      NHI {DATA_VERSION.date}
+                      <Spinner size={8} width={1.5} color="#92400E" />
+                      {T.dbLoading}
                     </span>
+                  ) : (
+                    nhiCount > 0 && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: "1px 6px",
+                          borderRadius: 3,
+                          background: "#D6EDEB",
+                          color: C.primary,
+                          letterSpacing: 0.3,
+                          border: "1px solid #A8D0CE",
+                        }}
+                      >
+                        NHI {DATA_VERSION.date}
+                      </span>
+                    )
                   )}
                 </div>
               </div>
