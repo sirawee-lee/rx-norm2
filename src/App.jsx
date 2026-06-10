@@ -122,18 +122,25 @@ const LANG = {
     allForms: "All forms",
     allClasses: "All classes",
     showingOf: (n, t) => `${n} / ${t}`,
-    sortByPrice: "Price ↑",
-    sortByName: "Name A-Z",
-    copyAllNames: "Copy all names",
-    copied: "✓ Copied",
     backAll: "← All results",
     noBrandsMatch: "No brands match the current filters.",
+    // Filter & sort toolbar
+    filterLabel: "Filter",
+    sortLabel: "Sort",
+    sortFieldName: "Name",
+    sortFieldStrength: "Strength",
+    sortAscTip: "Ascending (low → high / A → Z)",
+    sortDescTip: "Descending (high → low / Z → A)",
+    coverageAll: "NHI coverage",
+    coverageFull: "  Fully covered",
+    coverageCond: "  ⚠ Conditional",
+    resetFilters: "Reset",
+    exported: "✓ Exported",
     noIngredientFound: "No ingredients found for",
     lookupExamples:
       "<b>Generic:</b> metformin · quetiapine · omeprazole<br/><b>ATC class:</b> N05AH · A10BA · C09AA · N02BE<br/><b>Chinese:</b> 氧化鎂 · 二甲雙胍 · 奧美拉唑",
     lookupDesc:
       "Search by generic name or ATC code to see all NHI-listed brands — the same active ingredient under different brand names used across clinics.",
-    ocrQueryBadge: "Query from OCR pipeline",
     addBtn: "+ Add",
     addedBtn: "✓",
     // Lookup page modes
@@ -163,7 +170,8 @@ const LANG = {
     nhiDataLabel: "NHI data",
     nhiCovered: "✓ NHI Covered",
     nhiConditional: "⚠ Conditional Coverage",
-    nhiConditionalTip: "NHI may reimburse only when specific clinical criteria are met. You may need to pay out-of-pocket if criteria are not fulfilled.",
+    nhiConditionalTip:
+      "NHI may reimburse only when specific clinical criteria are met. You may need to pay out-of-pocket if criteria are not fulfilled.",
     reimbCond: "Conditions §",
     noReimbCond: "No special restrictions",
     nhiChapterLabel: "NHI Chapter",
@@ -251,18 +259,25 @@ const LANG = {
     allForms: "所有劑型",
     allClasses: "所有藥品分類",
     showingOf: (n, t) => `${n} / ${t}`,
-    sortByPrice: "價格低→高",
-    sortByName: "名稱 A-Z",
-    copyAllNames: "複製所有品名",
-    copied: "✓ 已複製",
     backAll: "← 回到結果",
     noBrandsMatch: "無符合目前篩選條件的品牌。",
+    // Filter & sort toolbar
+    filterLabel: "篩選",
+    sortLabel: "排序",
+    sortFieldName: "名稱",
+    sortFieldStrength: "劑量",
+    sortAscTip: "由低到高（價格低→高 / A→Z）",
+    sortDescTip: "由高到低（價格高→低 / Z→A）",
+    coverageAll: "所有給付狀態",
+    coverageFull: "✓ 完全給付",
+    coverageCond: "⚠ 有給付條件",
+    resetFilters: "重設",
+    exported: "✓ 已匯出",
     noIngredientFound: "找不到符合的成分：",
     lookupExamples:
       "<b>學名：</b>metformin · quetiapine · omeprazole<br/><b>ATC 分類：</b>N05AH · A10BA · C09AA · N02BE<br/><b>中文：</b>氧化鎂 · 二甲雙胍 · 奧美拉唑",
     lookupDesc:
       "輸入學名（成分）或 ATC 代碼，查看健保收載的所有品牌藥品，了解同一成分在不同診所使用的各種商品名稱。",
-    ocrQueryBadge: "來自 OCR 辨識的查詢",
     addBtn: "+ 加入",
     addedBtn: "✓",
     // Lookup page modes
@@ -292,7 +307,8 @@ const LANG = {
     nhiDataLabel: "NHI 資料",
     nhiCovered: "✓ 健保收載",
     nhiConditional: "⚠ 有給付條件",
-    nhiConditionalTip: "此藥品需符合特定臨床條件才能獲得健保給付，若不符合條件，費用須自行負擔。",
+    nhiConditionalTip:
+      "此藥品需符合特定臨床條件才能獲得健保給付，若不符合條件，費用須自行負擔。",
     reimbCond: "給付規定 §",
     noReimbCond: "無條件限制",
     nhiChapterLabel: "給付規定章節",
@@ -1320,7 +1336,9 @@ function AlternativesPanel({ drug }) {
 // ── Drug Search ────────────────────────────────────────────────────────────
 function DrugSearch({ addToMyDrugs, initQuery }) {
   const [query, setQuery] = useState(initQuery || "");
-  const [results, setResults] = useState(() => initQuery ? searchDrugs(initQuery) : []);
+  const [results, setResults] = useState(() =>
+    initQuery ? searchDrugs(initQuery) : [],
+  );
   const [showDD, setShowDD] = useState(false);
   const [selected, setSelected] = useState(null);
   const [reportDrug, setReportDrug] = useState(null);
@@ -1501,14 +1519,10 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
                     </span>
                     <DrugClassBadge raw={d.drugClass} />
                   </div>
-                  <div
-                    style={{ fontSize: 13, color: C.muted, marginTop: 2 }}
-                  >
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
                     {d.nameEN} · {d.nameZH}
                   </div>
-                  <div
-                    style={{ fontSize: 11, color: C.muted, marginTop: 4 }}
-                  >
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
                     {d.id} · ATC: {d.atc} · {d.form}
                     {isStaff && parseFloat(d.price) > 0 && ` · NT$ ${d.price}`}
                   </div>
@@ -3120,7 +3134,11 @@ function BrandDetailModal({
                   textUnderlineOffset: 3,
                 }}
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent("navigate-ingredient", { detail: { query: brand.ingredient || brand.nameEN } }));
+                  window.dispatchEvent(
+                    new CustomEvent("navigate-ingredient", {
+                      detail: { query: brand.ingredient || brand.nameEN },
+                    }),
+                  );
                   onClose();
                 }}
                 title="Search all brands of this ingredient"
@@ -3284,10 +3302,18 @@ function BrandDetailModal({
           >
             {[
               ["NHI Code", brand.id, null],
-              ["ATC Code", brand.atc, () => {
-                window.dispatchEvent(new CustomEvent("navigate-atc", { detail: { atc: brand.atc } }));
-                onClose();
-              }],
+              [
+                "ATC Code",
+                brand.atc,
+                () => {
+                  window.dispatchEvent(
+                    new CustomEvent("navigate-atc", {
+                      detail: { atc: brand.atc },
+                    }),
+                  );
+                  onClose();
+                },
+              ],
               [T.manufacturerLabel, brand.manufacturer, null],
               ...(isStaff && parseFloat(brand.price) > 0
                 ? [[T.nhiPriceLabel, `NT$ ${brand.price}`, null]]
@@ -3295,7 +3321,11 @@ function BrandDetailModal({
             ]
               .filter(([, v]) => v)
               .map(([k, v, onClick]) => (
-                <div key={k} onClick={onClick || undefined} style={{ cursor: onClick ? "pointer" : "default" }}>
+                <div
+                  key={k}
+                  onClick={onClick || undefined}
+                  style={{ cursor: onClick ? "pointer" : "default" }}
+                >
                   <div
                     style={{
                       fontSize: 10,
@@ -3308,14 +3338,16 @@ function BrandDetailModal({
                   >
                     {k}
                   </div>
-                  <div style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: onClick ? C.primary : C.text,
-                    textDecoration: onClick ? "underline" : "none",
-                    textDecorationStyle: "dotted",
-                    textUnderlineOffset: 3,
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: onClick ? C.primary : C.text,
+                      textDecoration: onClick ? "underline" : "none",
+                      textDecorationStyle: "dotted",
+                      textUnderlineOffset: 3,
+                    }}
+                  >
                     {v}
                   </div>
                 </div>
@@ -3840,11 +3872,26 @@ const ATC_L2 = {
 };
 
 // ── Filtered brand list with strength / form dropdowns ───────────────────
-function FilteredBrandList({ brands, isStaff, addToMyDrugs, onCardClick, imgCount }) {
+// Unified, reusable brand-list toolbar (filter + sort + export).
+// Used by IngredientLookup, ATCBrowser, and BulkSearch so every brand list
+// behaves the same. Price sort/column stays staff-only (price is hidden from guests).
+function FilteredBrandList({
+  brands,
+  isStaff,
+  addToMyDrugs,
+  onCardClick,
+  imgCount,
+  exportName = "brands",
+  showExport = true,
+}) {
   const { T } = useLang();
   const [strength, setStrength] = useState("all");
   const [form, setForm] = useState("all");
   const [cls, setCls] = useState("all");
+  const [coverage, setCoverage] = useState("all"); // all | covered | conditional
+  const [sortField, setSortField] = useState("name"); // name | strength
+  const [sortDir, setSortDir] = useState("asc"); // asc | desc
+  const [exported, setExported] = useState(false);
 
   const strengths = useMemo(() => {
     const vals = [...new Set(brands.map((b) => b.strength).filter(Boolean))];
@@ -3852,75 +3899,318 @@ function FilteredBrandList({ brands, isStaff, addToMyDrugs, onCardClick, imgCoun
   }, [brands]);
 
   const forms = useMemo(() => {
-    const vals = [...new Set(brands.map((b) => dosageFormEN(b.form) || b.form).filter(Boolean))];
+    const vals = [
+      ...new Set(
+        brands.map((b) => dosageFormEN(b.form) || b.form).filter(Boolean),
+      ),
+    ];
     return vals.sort();
   }, [brands]);
 
   const classes = useMemo(() => {
-    const vals = [...new Set(brands.map((b) => b.drugClass).filter(Boolean))];
+    const vals = [
+      ...new Set(
+        brands.map((b) => drugClassLabel(b.drugClass)).filter(Boolean),
+      ),
+    ];
     return vals.sort();
   }, [brands]);
 
-  const filtered = useMemo(() => {
-    return brands.filter((b) => {
-      if (strength !== "all" && b.strength !== strength) return false;
-      if (form !== "all" && (dosageFormEN(b.form) || b.form) !== form) return false;
-      if (cls !== "all" && b.drugClass !== cls) return false;
-      return true;
-    });
-  }, [brands, strength, form, cls]);
+  // Show the coverage filter only when the set actually mixes covered + conditional.
+  const coverageMixed = useMemo(() => {
+    let covered = false,
+      cond = false;
+    for (const b of brands) {
+      if (b.nhiChapter) cond = true;
+      else covered = true;
+      if (covered && cond) return true;
+    }
+    return false;
+  }, [brands]);
 
-  const showFilters = brands.length > 6;
+  // Price tertiles → drives the 💚/🟡/🔴 band coloring on each row (staff only).
+  const { priceLow, priceHigh } = useMemo(() => {
+    const prices = brands
+      .map((b) => parseFloat(b.price || 0))
+      .filter((p) => p > 0)
+      .sort((a, b) => a - b);
+    if (prices.length < 3)
+      return {
+        priceLow: prices[0] || 0,
+        priceHigh: prices[prices.length - 1] || 0,
+      };
+    return {
+      priceLow: prices[Math.floor(prices.length * 0.33)],
+      priceHigh: prices[Math.floor(prices.length * 0.66)],
+    };
+  }, [brands]);
+
+  const filtered = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return brands
+      .filter((b) => {
+        if (strength !== "all" && b.strength !== strength) return false;
+        if (form !== "all" && (dosageFormEN(b.form) || b.form) !== form)
+          return false;
+        if (cls !== "all" && drugClassLabel(b.drugClass) !== cls) return false;
+        if (coverage === "covered" && b.nhiChapter) return false;
+        if (coverage === "conditional" && !b.nhiChapter) return false;
+        return true;
+      })
+      .slice()
+      .sort((a, b) => {
+        if (sortField === "strength")
+          return (
+            dir *
+            ((parseFloat(a.strength) || 0) - (parseFloat(b.strength) || 0))
+          );
+        return dir * (a.nameEN || "").localeCompare(b.nameEN || "");
+      });
+  }, [brands, strength, form, cls, coverage, sortField, sortDir]);
+
+  const anyFilter =
+    strength !== "all" || form !== "all" || cls !== "all" || coverage !== "all";
+
+  function resetFilters() {
+    setStrength("all");
+    setForm("all");
+    setCls("all");
+    setCoverage("all");
+  }
+
+  function exportCSV() {
+    const header =
+      "NHI_Code,Brand_EN,Brand_ZH,Ingredient,ATC,Form,Strength,Manufacturer,Coverage,NHI_Chapter,Price";
+    const body = filtered
+      .map((b) =>
+        [
+          b.id,
+          b.nameEN,
+          b.nameZH,
+          b.ingredient,
+          b.atc,
+          dosageFormEN(b.form) || b.form,
+          b.strength,
+          b.manufacturer,
+          b.nhiChapter ? "Conditional" : "Covered",
+          b.nhiChapter,
+          b.price,
+        ]
+          .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    const blob = new Blob(["﻿" + header + "\n" + body], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${String(exportName).replace(/\s+/g, "_") || "brands"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExported(true);
+    setTimeout(() => setExported(false), 2000);
+  }
+
   const selectStyle = {
-    padding: "5px 10px",
+    padding: "6px 10px",
     borderRadius: 8,
     border: `1.5px solid ${C.border}`,
     fontSize: 12,
     fontWeight: 600,
-    background: "#f8fafc",
+    background: "#fff",
     color: C.text,
     cursor: "pointer",
     outline: "none",
+    fontFamily: "inherit",
   };
+  const btnStyle = {
+    padding: "6px 11px",
+    borderRadius: 8,
+    border: `1.5px solid ${C.border}`,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    background: "#fff",
+    color: C.muted,
+    fontFamily: "inherit",
+  };
+
+  const hasFilterDropdowns =
+    forms.length > 1 ||
+    classes.length > 1 ||
+    coverageMixed ||
+    strengths.length > 1;
+  const showToolbar = brands.length > 1;
 
   return (
     <div>
-      {showFilters && (strengths.length > 1 || forms.length > 1 || classes.length > 1) && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {strengths.length > 1 && (
-            <select value={strength} onChange={(e) => setStrength(e.target.value)} style={selectStyle}>
-              <option value="all">{T.allStrengths}</option>
-              {strengths.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+      {showToolbar && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginBottom: 12,
+            padding: "10px 12px",
+            background: "#f8fafc",
+            borderRadius: 12,
+            border: `1px solid ${C.border}`,
+          }}
+        >
+          {/* Row 1 — filters */}
+          {hasFilterDropdowns && (
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              {forms.length > 1 && (
+                <select
+                  value={form}
+                  onChange={(e) => setForm(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="all">{T.allForms}</option>
+                  {forms.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {classes.length > 1 && (
+                <select
+                  value={cls}
+                  onChange={(e) => setCls(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="all">{T.allClasses}</option>
+                  {classes.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {coverageMixed && (
+                <select
+                  value={coverage}
+                  onChange={(e) => setCoverage(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="all">{T.coverageAll}</option>
+                  <option value="covered">{T.coverageFull}</option>
+                  <option value="conditional">{T.coverageCond}</option>
+                </select>
+              )}
+              {strengths.length > 1 && (
+                <select
+                  value={strength}
+                  onChange={(e) => setStrength(e.target.value)}
+                  style={selectStyle}
+                >
+                  <option value="all">{T.allStrengths}</option>
+                  {strengths.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {anyFilter && (
+                <button
+                  onClick={resetFilters}
+                  style={{
+                    ...btnStyle,
+                    border: "none",
+                    background: "transparent",
+                    color: C.primary,
+                    padding: "6px 4px",
+                  }}
+                >
+                  ✕ {T.resetFilters}
+                </button>
+              )}
+            </div>
           )}
-          {forms.length > 1 && (
-            <select value={form} onChange={(e) => setForm(e.target.value)} style={selectStyle}>
-              <option value="all">{T.allForms}</option>
-              {forms.map((f) => <option key={f} value={f}>{f}</option>)}
+
+          {/* Row 2 — sort + export + count */}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.muted }}>
+              {T.sortLabel}
+            </span>
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="name">{T.sortFieldName}</option>
+              {strengths.length > 1 && (
+                <option value="strength">{T.sortFieldStrength}</option>
+              )}
             </select>
-          )}
-          {classes.length > 1 && (
-            <select value={cls} onChange={(e) => setCls(e.target.value)} style={selectStyle}>
-              <option value="all">{T.allClasses}</option>
-              {classes.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          )}
-          <span style={{ fontSize: 11, color: C.muted }}>
-            {T.showingOf(filtered.length, brands.length)}
-          </span>
+            <button
+              onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              title={sortDir === "asc" ? T.sortAscTip : T.sortDescTip}
+              style={{
+                ...btnStyle,
+                fontWeight: 800,
+                minWidth: 34,
+                color: C.text,
+              }}
+            >
+              {sortDir === "asc" ? "↑" : "↓"}
+            </button>
+            {showExport && (
+              <button
+                onClick={exportCSV}
+                style={
+                  exported
+                    ? { ...btnStyle, background: "#dcfce7", color: "#166534" }
+                    : btnStyle
+                }
+              >
+                {exported ? T.exported : T.exportCSV}
+              </button>
+            )}
+            <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
+              {T.showingOf(filtered.length, brands.length)}
+            </span>
+          </div>
         </div>
       )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((b) => (
-          <BrandRow
-            key={b.id}
-            brand={b}
-            isStaff={isStaff}
-            addToMyDrugs={addToMyDrugs}
-            onCardClick={onCardClick}
-            imgCount={imgCount}
-          />
-        ))}
+        {filtered.length > 0 ? (
+          filtered.map((b) => (
+            <BrandRow
+              key={b.id}
+              brand={b}
+              isStaff={isStaff}
+              addToMyDrugs={addToMyDrugs}
+              onCardClick={onCardClick}
+              imgCount={imgCount}
+              priceLow={priceLow}
+              priceHigh={priceHigh}
+            />
+          ))
+        ) : (
+          <Card style={{ textAlign: "center", color: C.muted, padding: 32 }}>
+            {T.noBrandsMatch}
+          </Card>
+        )}
       </div>
     </div>
   );
@@ -4143,6 +4433,7 @@ function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
             addToMyDrugs={addToMyDrugs}
             onCardClick={setDetailBrand}
             imgCount={nhiCount}
+            exportName={selectedConcept.ingredient}
           />
         </div>
       ) : (
@@ -4356,6 +4647,7 @@ function BulkSearch() {
           isStaff={isStaff}
           addToMyDrugs={null}
           onCardClick={setDetailBrand}
+          exportName={viewConcept.ingredient}
         />
       </div>
     );
@@ -4547,7 +4839,14 @@ function BulkSearch() {
 }
 
 // ── Lookup Page — mode switcher wrapping Search / Browse / Bulk ───────────
-function LookupPage({ addToMyDrugs, ocrQuery, nhiCount, imgCount, initQuery, initAtc }) {
+function LookupPage({
+  addToMyDrugs,
+  ocrQuery,
+  nhiCount,
+  imgCount,
+  initQuery,
+  initAtc,
+}) {
   const [mode, setMode] = useState(initAtc ? "browse" : "search");
   const { T } = useLang();
   const modes = [
@@ -4597,7 +4896,11 @@ function LookupPage({ addToMyDrugs, ocrQuery, nhiCount, imgCount, initQuery, ini
         />
       )}
       {mode === "browse" && (
-        <ATCBrowser addToMyDrugs={addToMyDrugs} nhiCount={nhiCount} initAtc={initAtc} />
+        <ATCBrowser
+          addToMyDrugs={addToMyDrugs}
+          nhiCount={nhiCount}
+          initAtc={initAtc}
+        />
       )}
       {mode === "bulk" && <BulkSearch />}
     </div>
@@ -4611,10 +4914,7 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
   const [concepts, setConcepts] = useState([]);
   const [showDD, setShowDD] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [filter, setFilter] = useState({ form: "all", cls: "all" });
-  const [sortBy, setSortBy] = useState("price");
   const [detailBrand, setDetailBrand] = useState(null);
-  const [copyDone, setCopyDone] = useState(false);
   const { isStaff } = useAuth();
   const { T } = useLang();
   const wrapRef = useRef();
@@ -4648,8 +4948,6 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
   function pickConcept(c) {
     setSelected(c);
     setShowDD(false);
-    setFilter({ form: "all", cls: "all" });
-    setSortBy("price");
     addHist({
       type: "lookup",
       query: c.ingredient,
@@ -4663,34 +4961,6 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
     setSelected(null);
     setShowDD(false);
   }
-
-  const forms = selected
-    ? ["all", ...new Set(selected.brands.map((b) => b.form).filter(Boolean))]
-    : [];
-  const classes = selected
-    ? [
-        "all",
-        ...new Set(
-          selected.brands
-            .map((b) => drugClassLabel(b.drugClass))
-            .filter(Boolean),
-        ),
-      ]
-    : [];
-
-  const filteredBrands = selected
-    ? selected.brands
-        .filter((b) => filter.form === "all" || b.form === filter.form)
-        .filter(
-          (b) =>
-            filter.cls === "all" || drugClassLabel(b.drugClass) === filter.cls,
-        )
-        .sort((a, b) =>
-          sortBy === "price"
-            ? parseFloat(a.price || 0) - parseFloat(b.price || 0)
-            : a.nameEN.localeCompare(b.nameEN),
-        )
-    : [];
 
   const { priceLow, priceHigh } = useMemo(() => {
     if (!selected) return { priceLow: 0, priceHigh: 0 };
@@ -4708,45 +4978,6 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
       priceHigh: prices[Math.floor(prices.length * 0.66)],
     };
   }, [selected]);
-
-  function copyBrands() {
-    const txt = filteredBrands
-      .map((b) => `${b.nameEN}${b.strength ? " (" + b.strength + ")" : ""}`)
-      .join("\n");
-    navigator.clipboard?.writeText(txt);
-    setCopyDone(true);
-    setTimeout(() => setCopyDone(false), 2000);
-  }
-  function exportCSV() {
-    const header =
-      "NHI_Code,Brand_EN,Brand_ZH,Ingredient,ATC,Form,Strength,Manufacturer,Price";
-    const body = filteredBrands
-      .map((b) =>
-        [
-          b.id,
-          b.nameEN,
-          b.nameZH,
-          b.ingredient,
-          b.atc,
-          b.form,
-          b.strength,
-          b.manufacturer,
-          b.price,
-        ]
-          .map((v) => `"${(v || "").replace(/"/g, '""')}"`)
-          .join(","),
-      )
-      .join("\n");
-    const blob = new Blob(["﻿" + header + "\n" + body], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${selected.ingredient.replace(/\s+/g, "_")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 
   return (
     <div>
@@ -4885,26 +5116,6 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
         )}
       </div>
 
-      {ocrQuery && ocrQuery === query && (
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "#fef3c7",
-            border: "1px solid #fbbf24",
-            borderRadius: 8,
-            padding: "5px 12px",
-            fontSize: 12,
-            color: "#92400e",
-            fontWeight: 600,
-            marginBottom: 12,
-          }}
-        >
-          🔤 {T.ocrQueryBadge}
-        </div>
-      )}
-
       {selected ? (
         <div>
           <button
@@ -4990,137 +5201,14 @@ function IngredientLookup({ addToMyDrugs, ocrQuery, imgCount }) {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              marginBottom: 12,
-              padding: "10px 12px",
-              background: "#f8fafc",
-              borderRadius: 10,
-              border: `1px solid ${C.border}`,
-              alignItems: "center",
-            }}
-          >
-            <select
-              value={filter.form}
-              onChange={(e) =>
-                setFilter((p) => ({ ...p, form: e.target.value }))
-              }
-              style={{
-                padding: "5px 8px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                fontSize: 12,
-                fontFamily: "inherit",
-                color: C.text,
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {forms.map((f) => (
-                <option key={f} value={f}>
-                  {f === "all" ? T.allForms : dosageFormEN(f) || f}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filter.cls}
-              onChange={(e) =>
-                setFilter((p) => ({ ...p, cls: e.target.value }))
-              }
-              style={{
-                padding: "5px 8px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                fontSize: 12,
-                fontFamily: "inherit",
-                color: C.text,
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {classes.map((cc) => (
-                <option key={cc} value={cc}>
-                  {cc === "all" ? T.allClasses : cc}
-                </option>
-              ))}
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              style={{
-                padding: "5px 8px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                fontSize: 12,
-                fontFamily: "inherit",
-                color: C.text,
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              <option value="price">{T.sortByPrice}</option>
-              <option value="name">{T.sortByName}</option>
-            </select>
-            <button
-              onClick={copyBrands}
-              style={{
-                padding: "5px 10px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                background: copyDone ? "#dcfce7" : "#fff",
-                color: copyDone ? "#166534" : C.muted,
-              }}
-            >
-              {copyDone ? T.copied : T.copyAllNames}
-            </button>
-            <button
-              onClick={exportCSV}
-              style={{
-                padding: "5px 10px",
-                borderRadius: 7,
-                border: `1px solid ${C.border}`,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: "pointer",
-                background: "#fff",
-                color: C.muted,
-              }}
-            >
-              {T.exportCSV}
-            </button>
-            <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
-              {filteredBrands.length}/{selected.brandCount}
-            </span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filteredBrands.length > 0 ? (
-              filteredBrands.map((b) => (
-                <BrandRow
-                  key={b.id}
-                  brand={b}
-                  isStaff={isStaff}
-                  addToMyDrugs={addToMyDrugs}
-                  priceLow={priceLow}
-                  priceHigh={priceHigh}
-                  imgCount={imgCount}
-                  onCardClick={setDetailBrand}
-                />
-              ))
-            ) : (
-              <Card
-                style={{ textAlign: "center", color: C.muted, padding: 32 }}
-              >
-                {T.noBrandsMatch}
-              </Card>
-            )}
-          </div>
+          <FilteredBrandList
+            brands={selected.brands}
+            isStaff={isStaff}
+            addToMyDrugs={addToMyDrugs}
+            onCardClick={setDetailBrand}
+            imgCount={imgCount}
+            exportName={selected.ingredient}
+          />
         </div>
       ) : (
         <>
@@ -6037,7 +6125,10 @@ function ScanRx({ addToMyDrugs }) {
             }}
           >
             <button
-              onClick={(e) => { e.stopPropagation(); addMed(drug); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                addMed(drug);
+              }}
               disabled={added.has(drug.id)}
               style={{
                 padding: "7px 12px",
@@ -6054,7 +6145,10 @@ function ScanRx({ addToMyDrugs }) {
             </button>
 
             <button
-              onClick={(e) => { e.stopPropagation(); setReportDrug(drug); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setReportDrug(drug);
+              }}
               style={{
                 padding: "7px 12px",
                 borderRadius: 8,
@@ -6424,7 +6518,11 @@ function MyMeds({ meds, setMeds }) {
         </Card>
       ) : (
         meds.map((med) => (
-          <Card key={med.id} style={{ cursor: "pointer" }} onClick={() => setSelected(med)}>
+          <Card
+            key={med.id}
+            style={{ cursor: "pointer" }}
+            onClick={() => setSelected(med)}
+          >
             <div
               style={{
                 display: "flex",
@@ -6479,7 +6577,10 @@ function MyMeds({ meds, setMeds }) {
                 }}
               >
                 <button
-                  onClick={(e) => { e.stopPropagation(); toggle(med.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle(med.id);
+                  }}
                   style={{
                     padding: "6px 12px",
                     borderRadius: 8,
@@ -6494,7 +6595,10 @@ function MyMeds({ meds, setMeds }) {
                   {med.reminderOn ? "🔔 On" : "🔕 Off"}
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); remove(med.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(med.id);
+                  }}
                   style={{
                     padding: "6px 12px",
                     borderRadius: 8,
@@ -8619,7 +8723,9 @@ function AppInner() {
               color: theme.text,
             }}
           >
-            {tab === "search" && <DrugSearch addToMyDrugs={addToMyDrugs} initQuery={lookupQuery} />}
+            {tab === "search" && (
+              <DrugSearch addToMyDrugs={addToMyDrugs} initQuery={lookupQuery} />
+            )}
             {tab === "scan" && <ScanRx addToMyDrugs={addToMyDrugs} />}
             {tab === "lookup" && (
               <LookupPage

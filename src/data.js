@@ -253,6 +253,37 @@ export const INTERACTION_DB = [
   },
 ]
 
+// Collapse duplicate NHI codes that point to the same physical product.
+// Taiwan NHI issues several reimbursement codes per FDA license (licId) — usually
+// one active-priced code plus superseded / zero-priced / different-pack-size codes.
+// For a clinical lookup we want ONE card per (license + brand + strength + form),
+// otherwise the same drug shows up as 2–3 near-identical rows.
+function brandKey(b) {
+  return [b.licId || b.id, b.nameEN, b.strength, b.form].join('|')
+}
+
+// Pick the more representative of two duplicate records.
+// Prefer a record carrying a real (non-zero) NHI price; if both are priced
+// (pack-size variants) keep the lower unit price; if neither, keep the first seen.
+function pickRepresentative(a, b) {
+  const pa = parseFloat(a.price || 0)
+  const pb = parseFloat(b.price || 0)
+  if (pa > 0 && pb <= 0) return a
+  if (pb > 0 && pa <= 0) return b
+  if (pa > 0 && pb > 0)  return pa <= pb ? a : b
+  return a
+}
+
+export function dedupeBrands(brands) {
+  const groups = new Map()
+  for (const b of brands) {
+    const k = brandKey(b)
+    const prev = groups.get(k)
+    groups.set(k, prev ? pickRepresentative(prev, b) : b)
+  }
+  return [...groups.values()]
+}
+
 // Search DRUGS_LIVE grouped by ingredient (concept root).
 // Returns concept groups: { ingredient, atc, atcCategory, brands[], brandCount, score }
 // Supports: generic name (EN), ATC code prefix, Chinese name substring, brand name substring.
@@ -302,7 +333,7 @@ export function searchByIngredient(query) {
   }
 
   return [...groups.values()]
-    .map(g => ({ ...g, brandCount: g.brands.length }))
+    .map(g => { const brands = dedupeBrands(g.brands); return { ...g, brands, brandCount: brands.length } })
     .sort((a, b) => b.score !== a.score ? b.score - a.score : b.brandCount - a.brandCount)
     .slice(0, 30)
 }
@@ -330,7 +361,7 @@ export function browseByATC(prefix) {
     if (d.atc && (!g.atc || d.atc.length > g.atc.length)) g.atc = d.atc
   }
   return [...groups.values()]
-    .map(g => ({ ...g, brandCount: g.brands.length }))
+    .map(g => { const brands = dedupeBrands(g.brands); return { ...g, brands, brandCount: brands.length } })
     .sort((a, b) => b.brandCount - a.brandCount)
 }
 
