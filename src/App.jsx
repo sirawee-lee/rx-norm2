@@ -461,10 +461,27 @@ function Badge({ role }) {
     </span>
   );
 }
+// Spread onto any non-<button> element used as a button so keyboard users can
+// activate it with Enter/Space and screen readers announce it as a button.
+function clickableProps(onActivate) {
+  return {
+    role: "button",
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onActivate(e);
+      }
+    },
+  };
+}
+
 function Card({ children, style, onClick }) {
+  const interactive = !!onClick;
   return (
     <div
-      onClick={onClick}
+      {...(interactive ? clickableProps(onClick) : {})}
       style={{
         background: "var(--card)",
         color: "var(--text)",
@@ -3270,14 +3287,14 @@ function BrandDetailModal({
                   textDecorationStyle: "dotted",
                   textUnderlineOffset: 3,
                 }}
-                onClick={() => {
+                {...clickableProps(() => {
                   window.dispatchEvent(
                     new CustomEvent("navigate-ingredient", {
                       detail: { query: brand.ingredient || brand.nameEN },
                     }),
                   );
                   onClose();
-                }}
+                })}
                 title="Search all brands of this ingredient"
               >
                 {brand.ingredient || brand.nameEN}
@@ -3460,7 +3477,9 @@ function BrandDetailModal({
               .map(([k, v, onClick]) => (
                 <div
                   key={k}
-                  onClick={onClick || undefined}
+                  {...(onClick
+                    ? { ...clickableProps(onClick), title: `${k}: ${v}` }
+                    : {})}
                   style={{ cursor: onClick ? "pointer" : "default" }}
                 >
                   <div
@@ -3747,13 +3766,31 @@ function BrandRow({
         />
       )}
       <div
+        role="button"
+        tabIndex={0}
         onClick={() => onCardClick && onCardClick(brand)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onCardClick && onCardClick(brand);
+          }
+        }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "#EBF5EE";
           e.currentTarget.style.borderColor = C.primary;
           e.currentTarget.style.boxShadow = `0 2px 12px rgba(27,104,64,.12)`;
         }}
         onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#fafafa";
+          e.currentTarget.style.borderColor = C.border;
+          e.currentTarget.style.boxShadow = "none";
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.background = "#EBF5EE";
+          e.currentTarget.style.borderColor = C.primary;
+          e.currentTarget.style.boxShadow = `0 0 0 2px ${C.primary}55`;
+        }}
+        onBlur={(e) => {
           e.currentTarget.style.background = "#fafafa";
           e.currentTarget.style.borderColor = C.border;
           e.currentTarget.style.boxShadow = "none";
@@ -6303,7 +6340,7 @@ function ScanRx({ addToMyDrugs }) {
         >
           <div
             style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
-            onClick={() => setSelectedDrug(drug)}
+            {...clickableProps(() => setSelectedDrug(drug))}
           >
             <div
               style={{
