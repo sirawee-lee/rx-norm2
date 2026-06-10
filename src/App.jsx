@@ -57,6 +57,7 @@ const LANG = {
     settings: "Settings",
     interact: "Drugs Interaction",
     admin: "Admin Panel",
+    ddiSelectTwo: "Select two drugs to compare",
     admConfirmTitle: "Confirm entry?",
     admConfirmMsg: "Add this unmatched scan to the dictionary as a confirmed match?",
     admConfirmBtn: "Confirm",
@@ -156,6 +157,7 @@ const LANG = {
     bulkPlaceholder:
       "Paste drug names — one per line or comma-separated\ne.g. metformin, quetiapine, omeprazole",
     bulkRun: "Look up all",
+    bulkEmptyHint: "Enter or paste drug names first",
     bulkClear: "Clear",
     bulkColInput: "Input",
     bulkColIngredient: "Matched Ingredient",
@@ -204,6 +206,7 @@ const LANG = {
     settings: "設定",
     interact: "藥物交互作用",
     admin: "管理面板",
+    ddiSelectTwo: "請先選擇兩種藥物",
     admConfirmTitle: "確認此項目？",
     admConfirmMsg: "要將這筆未匹配的掃描結果確認並加入字典嗎？",
     admConfirmBtn: "確認",
@@ -302,6 +305,7 @@ const LANG = {
     bulkPlaceholder:
       "貼上藥品名稱，每行一個或以逗號分隔\n例如：metformin, quetiapine, omeprazole",
     bulkRun: "開始查詢",
+    bulkEmptyHint: "請先輸入或貼上藥品名稱",
     bulkClear: "清除",
     bulkColInput: "輸入名稱",
     bulkColIngredient: "對應成分",
@@ -4819,6 +4823,7 @@ function BulkSearch({ initText }) {
           <button
             onClick={runBulk}
             disabled={!text.trim()}
+            title={!text.trim() ? T.bulkEmptyHint : undefined}
             style={{
               padding: "9px 20px",
               borderRadius: 8,
@@ -4827,7 +4832,7 @@ function BulkSearch({ initText }) {
               border: "none",
               fontWeight: 700,
               fontSize: 13,
-              cursor: text.trim() ? "pointer" : "default",
+              cursor: text.trim() ? "pointer" : "not-allowed",
               opacity: text.trim() ? 1 : 0.5,
             }}
           >
@@ -7919,6 +7924,7 @@ function DrugInteractionCenter({ preset }) {
             <button
               onClick={check}
               disabled={!selA || !selB}
+              title={!selA || !selB ? T.ddiSelectTwo : undefined}
               style={{
                 flex: 1,
                 padding: "10px",
@@ -7926,12 +7932,12 @@ function DrugInteractionCenter({ preset }) {
                 fontSize: 13,
                 fontWeight: 700,
                 border: "none",
-                cursor: selA && selB ? "pointer" : "default",
+                cursor: selA && selB ? "pointer" : "not-allowed",
                 background: selA && selB ? C.primary : "#e2e8f0",
                 color: selA && selB ? "#fff" : C.muted,
               }}
             >
-              Check Interaction
+              {selA && selB ? "Check Interaction" : T.ddiSelectTwo}
             </button>
             {(selB || checked) && (
               <button
