@@ -4841,8 +4841,28 @@ function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
   );
 }
 
+// True when the viewport is at/below `maxWidth`. Lets components swap a
+// table for a stacked card layout on phones without a CSS file.
+function useIsNarrow(maxWidth = 480) {
+  const query = `(max-width:${maxWidth}px)`;
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia(query).matches
+      : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = (e) => setNarrow(e.matches);
+    mq.addEventListener("change", onChange);
+    setNarrow(mq.matches);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return narrow;
+}
+
 // ── Bulk Search (RxMix-style) ─────────────────────────────────────────────
 function BulkSearch({ initText }) {
+  const narrow = useIsNarrow();
   const [text, setText] = useState(initText || "");
   const [rows, setRows] = useState(null);
   const [viewConcept, setViewConcept] = useState(null);
@@ -5041,7 +5061,93 @@ function BulkSearch({ initText }) {
         </div>
       </Card>
 
-      {rows && (
+      {rows && narrow && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rows.map((r, i) => (
+            <Card key={i} style={{ padding: "12px 14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 10,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{r.input}</div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: r.concept ? C.text : C.muted,
+                      marginTop: 2,
+                    }}
+                  >
+                    {r.concept?.ingredient || T.bulkNoMatch}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      marginTop: 6,
+                    }}
+                  >
+                    {r.concept?.atc && (
+                      <AtcLink
+                        atc={r.concept.atc}
+                        chip
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: 6,
+                          background: "#dbeafe",
+                          color: "#1d4ed8",
+                          textDecoration: "underline",
+                          textDecorationStyle: "dotted",
+                          textUnderlineOffset: 2,
+                        }}
+                      />
+                    )}
+                    {r.concept && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: C.primary,
+                        }}
+                      >
+                        {r.concept.brandCount} {T.bulkColBrands}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {r.concept && (
+                  <button
+                    onClick={() => setViewConcept(r.concept)}
+                    style={{
+                      flexShrink: 0,
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      background: C.primary,
+                      color: "#fff",
+                      border: "none",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {T.viewBrands}
+                  </button>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {rows && !narrow && (
         <div style={{ overflowX: "auto" }}>
           <table
             style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
