@@ -159,6 +159,7 @@ const LANG = {
     bulkRun: "Look up all",
     bulkEmptyHint: "Enter or paste drug names first",
     dbLoading: "Loading drug database…",
+    atcLinkTip: "View all brands with this ATC code",
     bulkClear: "Clear",
     bulkColInput: "Input",
     bulkColIngredient: "Matched Ingredient",
@@ -308,6 +309,7 @@ const LANG = {
     bulkRun: "開始查詢",
     bulkEmptyHint: "請先輸入或貼上藥品名稱",
     dbLoading: "正在載入藥品資料庫…",
+    atcLinkTip: "查看相同 ATC 代碼的所有品牌",
     bulkClear: "清除",
     bulkColInput: "輸入名稱",
     bulkColIngredient: "對應成分",
@@ -1677,7 +1679,7 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
                     {d.nameEN} · {d.nameZH}
                   </div>
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                    {d.id} · ATC: {d.atc} · {d.form}
+                    {d.id} · ATC: <AtcLink atc={d.atc} /> · {d.form}
                     {isStaff && parseFloat(d.price) > 0 && ` · NT$ ${d.price}`}
                   </div>
                 </div>
@@ -1729,6 +1731,37 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
   );
 }
 
+// Inline ATC code that navigates to "all brands with this ATC". Stops
+// propagation so it works even inside a clickable card/row. `chip` renders it
+// as a badge (ConceptCard), otherwise as an underlined inline link.
+function AtcLink({ atc, label, chip = false, style }) {
+  const { T } = useLang();
+  if (!atc) return null;
+  const go = (e) => {
+    e.stopPropagation();
+    window.dispatchEvent(new CustomEvent("navigate-atc", { detail: { atc } }));
+  };
+  const base = chip
+    ? style
+    : {
+        color: C.primary,
+        cursor: "pointer",
+        textDecoration: "underline",
+        textDecorationStyle: "dotted",
+        textUnderlineOffset: 2,
+        ...style,
+      };
+  return (
+    <span
+      {...clickableProps(go)}
+      title={T.atcLinkTip}
+      style={{ cursor: "pointer", ...base }}
+    >
+      {label || atc}
+    </span>
+  );
+}
+
 // ── Ingredient Lookup — Concept Card ─────────────────────────────────────
 function ConceptCard({ concept, onClick }) {
   const top = concept.brands.slice(0, 3);
@@ -1756,7 +1789,10 @@ function ConceptCard({ concept, onClick }) {
             }}
           >
             {concept.atc && (
-              <span
+              <AtcLink
+                atc={concept.atc}
+                label={`ATC: ${concept.atc}`}
+                chip
                 style={{
                   fontSize: 11,
                   padding: "2px 8px",
@@ -1764,10 +1800,11 @@ function ConceptCard({ concept, onClick }) {
                   background: "#dbeafe",
                   color: "#1d4ed8",
                   fontWeight: 700,
+                  textDecoration: "underline",
+                  textDecorationStyle: "dotted",
+                  textUnderlineOffset: 2,
                 }}
-              >
-                ATC: {concept.atc}
-              </span>
+              />
             )}
             {concept.atcCategory && (
               <span
@@ -6391,8 +6428,8 @@ function ScanRx({ addToMyDrugs }) {
                 marginTop: 4,
               }}
             >
-              {drug.id} · ATC: {drug.atc} · {dosageFormEN(drug.form)}{" "}
-              {drug.strength}
+              {drug.id} · ATC: <AtcLink atc={drug.atc} /> ·{" "}
+              {dosageFormEN(drug.form)} {drug.strength}
               {isStaff && parseFloat(drug.price) > 0 && ` · NT$ ${drug.price}`}
             </div>
           </div>
