@@ -1318,9 +1318,9 @@ function AlternativesPanel({ drug }) {
 }
 
 // ── Drug Search ────────────────────────────────────────────────────────────
-function DrugSearch({ addToMyDrugs }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
+function DrugSearch({ addToMyDrugs, initQuery }) {
+  const [query, setQuery] = useState(initQuery || "");
+  const [results, setResults] = useState(() => initQuery ? searchDrugs(initQuery) : []);
   const [showDD, setShowDD] = useState(false);
   const [selected, setSelected] = useState(null);
   const [reportDrug, setReportDrug] = useState(null);
@@ -3110,7 +3110,21 @@ function BrandDetailModal({
               >
                 {T.genericNameEN}
               </span>
-              <span style={{ fontWeight: 700, color: C.text }}>
+              <span
+                style={{
+                  fontWeight: 700,
+                  color: C.primary,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  textDecorationStyle: "dotted",
+                  textUnderlineOffset: 3,
+                }}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("navigate-ingredient", { detail: { query: brand.ingredient || brand.nameEN } }));
+                  onClose();
+                }}
+                title="Search all brands of this ingredient"
+              >
                 {brand.ingredient || brand.nameEN}
               </span>
 
@@ -3269,16 +3283,19 @@ function BrandDetailModal({
             }}
           >
             {[
-              ["NHI Code", brand.id],
-              ["ATC Code", brand.atc],
-              [T.manufacturerLabel, brand.manufacturer],
+              ["NHI Code", brand.id, null],
+              ["ATC Code", brand.atc, () => {
+                window.dispatchEvent(new CustomEvent("navigate-atc", { detail: { atc: brand.atc } }));
+                onClose();
+              }],
+              [T.manufacturerLabel, brand.manufacturer, null],
               ...(isStaff && parseFloat(brand.price) > 0
-                ? [[T.nhiPriceLabel, `NT$ ${brand.price}`]]
+                ? [[T.nhiPriceLabel, `NT$ ${brand.price}`, null]]
                 : []),
             ]
               .filter(([, v]) => v)
-              .map(([k, v]) => (
-                <div key={k}>
+              .map(([k, v, onClick]) => (
+                <div key={k} onClick={onClick || undefined} style={{ cursor: onClick ? "pointer" : "default" }}>
                   <div
                     style={{
                       fontSize: 10,
@@ -3291,7 +3308,14 @@ function BrandDetailModal({
                   >
                     {k}
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: onClick ? C.primary : C.text,
+                    textDecoration: onClick ? "underline" : "none",
+                    textDecorationStyle: "dotted",
+                    textUnderlineOffset: 3,
+                  }}>
                     {v}
                   </div>
                 </div>
@@ -3903,8 +3927,19 @@ function FilteredBrandList({ brands, isStaff, addToMyDrugs, onCardClick, imgCoun
 }
 
 // ── ATC Browser (RxClass-style) ───────────────────────────────────────────
-function ATCBrowser({ addToMyDrugs, nhiCount }) {
-  const [path, setPath] = useState([]); // e.g. ['N','N05','N05A','N05AH']
+function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
+  const initPath = useMemo(() => {
+    if (!initAtc) return [];
+    const a = initAtc.toUpperCase();
+    const segs = [];
+    if (a.length >= 1) segs.push(a.slice(0, 1));
+    if (a.length >= 3) segs.push(a.slice(0, 3));
+    if (a.length >= 4) segs.push(a.slice(0, 4));
+    if (a.length >= 5) segs.push(a.slice(0, 5));
+    return segs;
+  }, [initAtc]);
+
+  const [path, setPath] = useState(initPath); // e.g. ['N','N05','N05A','N05AH']
   const [selectedConcept, setSelectedConcept] = useState(null);
   const [detailBrand, setDetailBrand] = useState(null);
   const { T } = useLang();
@@ -4512,8 +4547,8 @@ function BulkSearch() {
 }
 
 // ── Lookup Page — mode switcher wrapping Search / Browse / Bulk ───────────
-function LookupPage({ addToMyDrugs, ocrQuery, nhiCount, imgCount }) {
-  const [mode, setMode] = useState("search");
+function LookupPage({ addToMyDrugs, ocrQuery, nhiCount, imgCount, initQuery, initAtc }) {
+  const [mode, setMode] = useState(initAtc ? "browse" : "search");
   const { T } = useLang();
   const modes = [
     { id: "search", label: T.modeSearch, icon: "🔍" },
@@ -4557,12 +4592,12 @@ function LookupPage({ addToMyDrugs, ocrQuery, nhiCount, imgCount }) {
       {mode === "search" && (
         <IngredientLookup
           addToMyDrugs={addToMyDrugs}
-          ocrQuery={ocrQuery}
+          ocrQuery={initQuery || ocrQuery}
           imgCount={imgCount}
         />
       )}
       {mode === "browse" && (
-        <ATCBrowser addToMyDrugs={addToMyDrugs} nhiCount={nhiCount} />
+        <ATCBrowser addToMyDrugs={addToMyDrugs} nhiCount={nhiCount} initAtc={initAtc} />
       )}
       {mode === "bulk" && <BulkSearch />}
     </div>
@@ -8160,6 +8195,8 @@ function AppInner() {
   const [language, setLanguage] = useState("zhTW");
   const [ddiPreset, setDdiPreset] = useState(null);
   const [toast, setToast] = useState("");
+  const [lookupQuery, setLookupQuery] = useState("");
+  const [lookupAtc, setLookupAtc] = useState("");
   const [myDrugs, setMyDrugs] = useState([
     { ...DRUGS[6], times: ["09:00"], reminderOn: true },
     { ...DRUGS[9], times: ["08:00", "12:00", "18:00"], reminderOn: true },
@@ -8185,6 +8222,27 @@ function AppInner() {
     const openSignup = () => setShowSignup(true);
     window.addEventListener("open-signup", openSignup);
     return () => window.removeEventListener("open-signup", openSignup);
+  }, []);
+
+  useEffect(() => {
+    function h(e) {
+      setLookupQuery(e.detail.query);
+      setLookupAtc("");
+      // staff/admin → ingredient lookup; guest → search tab
+      setTab(isStaff ? "lookup" : "search");
+    }
+    window.addEventListener("navigate-ingredient", h);
+    return () => window.removeEventListener("navigate-ingredient", h);
+  }, [isStaff]);
+
+  useEffect(() => {
+    function h(e) {
+      setLookupAtc(e.detail.atc);
+      setLookupQuery("");
+      setTab("lookup");
+    }
+    window.addEventListener("navigate-atc", h);
+    return () => window.removeEventListener("navigate-atc", h);
   }, []);
 
   useEffect(() => {
@@ -8561,13 +8619,15 @@ function AppInner() {
               color: theme.text,
             }}
           >
-            {tab === "search" && <DrugSearch addToMyDrugs={addToMyDrugs} />}
+            {tab === "search" && <DrugSearch addToMyDrugs={addToMyDrugs} initQuery={lookupQuery} />}
             {tab === "scan" && <ScanRx addToMyDrugs={addToMyDrugs} />}
             {tab === "lookup" && (
               <LookupPage
                 addToMyDrugs={addToMyDrugs}
                 nhiCount={nhiCount}
                 imgCount={imgCount}
+                initQuery={lookupQuery}
+                initAtc={lookupAtc}
               />
             )}
             {tab === "interact" && <DrugInteractionCenter preset={ddiPreset} />}
