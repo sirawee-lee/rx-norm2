@@ -3,9 +3,10 @@ import React, { createContext, useContext, useState } from 'react'
 // Hardcoded accounts for demo
 // In production: POST /auth/login → real JWT from FastAPI backend
 const ACCOUNTS = {
-  'admin':  { password: 'admin123',  role: 'admin',  name: 'System Admin',       institution: 'NHI / TFDA' },
-  'staff':  { password: 'staff123',  role: 'staff',  name: 'Hospital Staff Demo', institution: 'NTHU Medical Center' },
-  'doctor': { password: 'doctor123', role: 'staff',  name: 'Dr. Chen Wei',        institution: 'Hsinchu Regional Hospital' },
+  'admin':  { password: 'admin123',  role: 'admin',   name: 'System Admin',       institution: 'NHI / TFDA' },
+  'staff':  { password: 'staff123',  role: 'staff',   name: 'Hospital Staff Demo', institution: 'NTHU Medical Center' },
+  'doctor': { password: 'doctor123', role: 'staff',   name: 'Dr. Chen Wei',        institution: 'Hsinchu Regional Hospital' },
+  'user':   { password: 'user123',   role: 'patient', name: 'Lin Mei-Ling 林美玲', institution: 'Hsinchu · NHI Card 0921-xxxx' },
 }
 
 const AuthContext = createContext(null)
@@ -31,12 +32,13 @@ export function AuthProvider({ children }) {
   }
 
   // Permission helpers
-  const isAdmin  = user?.role === 'admin'
-  const isStaff  = user?.role === 'admin' || user?.role === 'staff'
-  const isGuest  = !user
+  const isAdmin   = user?.role === 'admin'
+  const isStaff   = user?.role === 'admin' || user?.role === 'staff'
+  const isPatient = user?.role === 'patient'
+  const isGuest   = !user
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, error, setError, isAdmin, isStaff, isGuest }}>
+    <AuthContext.Provider value={{ user, login, logout, error, setError, isAdmin, isStaff, isPatient, isGuest }}>
       {children}
     </AuthContext.Provider>
   )

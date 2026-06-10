@@ -444,6 +444,7 @@ function Badge({ role }) {
   const m = {
     admin: ["#dc2626", "#fef2f2"],
     staff: ["#d97706", "#fffbeb"],
+    patient: ["#7c3aed", "#f5f3ff"],
     guest: ["#16a34a", "#f0fdf4"],
   };
   const [col, bg] = m[role] || m.guest;
@@ -974,6 +975,9 @@ function LoginModal({ onClose }) {
           <div>admin / admin123</div>
           <div>staff / staff123</div>
           <div>doctor / doctor123</div>
+          <div style={{ marginTop: 4, color: "#7c3aed", fontWeight: 700 }}>
+            user / user123 — 病人 Patient
+          </div>
         </div>
 
         <div
@@ -1664,11 +1668,12 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
                   alignItems: "center",
+                  gap: 10,
                 }}
               >
-                <div>
+                <MedThumb med={d} size={52} />
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       display: "flex",
@@ -5978,7 +5983,7 @@ function ScanRx({ addToMyDrugs }) {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
-  const { isStaff } = useAuth();
+  const { isStaff, isPatient } = useAuth();
   const cc = (s) =>
     s >= LOW_CONF ? C.success : s >= 0.55 ? C.warning : C.danger;
 
@@ -6497,6 +6502,15 @@ function ScanRx({ addToMyDrugs }) {
     window.dispatchEvent(new CustomEvent("navigate-bulk", { detail: { text } }));
   }
 
+  // Patient: turn the identified drugs into a new Rx List (playlist).
+  function saveAsRxList() {
+    const drugs = matched.map((m) => m.drug);
+    if (!drugs.length) return;
+    window.dispatchEvent(
+      new CustomEvent("save-rx-list", { detail: { drugs, source: "ocr" } }),
+    );
+  }
+
   function copyCleaned() {
     const text = buildBulkText(detected);
     if (text && navigator.clipboard) navigator.clipboard.writeText(text);
@@ -6695,6 +6709,33 @@ function ScanRx({ addToMyDrugs }) {
           )}
         </div>
       </Card>
+
+      {isPatient && matched.length > 0 && (
+        <button
+          onClick={saveAsRxList}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            width: "100%",
+            border: "none",
+            background: C.primary,
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 14,
+            borderRadius: 14,
+            padding: "13px 16px",
+            cursor: "pointer",
+            boxShadow: "0 6px 16px rgba(27,104,64,.22)",
+          }}
+        >
+          💾 Save as Rx List
+          <span style={{ fontWeight: 600, opacity: 0.85, fontSize: 12 }}>
+            ({matched.length} drug{matched.length !== 1 ? "s" : ""})
+          </span>
+        </button>
+      )}
 
       {detected.length > 0 && (
         <Card style={{ background: "#f8fafc", border: `1px solid ${C.border}` }}>
@@ -7781,6 +7822,7 @@ function IxCard({ ix, showPair = false }) {
 }
 
 function DrugInteractionCenter({ preset }) {
+  const { T } = useLang();
   const [drugA, setDrugA] = useState("");
   const [drugB, setDrugB] = useState("");
   const [resultsA, setResultsA] = useState([]);
@@ -8859,6 +8901,1013 @@ function SettingsSubLayout({ title, theme, onBack, children }) {
   );
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// PATIENT EXPERIENCE — "Rx Lists" (Spotify-style medication playlists)
+// ════════════════════════════════════════════════════════════════════════════
+// A patient groups medicines into Rx Lists (playlists) — one per care episode:
+// a clinic visit, a pharmacy purchase, a typed/scanned prescription. The Cabinet
+// (Home) merges every list and runs RxNorm-powered safety checks:
+//   #1 duplicate active ingredient (same drug, different brand),
+//   #2 a "is this the same medicine?" verifier for anything the patient types,
+//   #3 drug–drug interactions (DDI), #4 polypharmacy.
+// The hero idea: RxNorm normalises many brand names down to ONE ingredient, so
+// the patient is never confused when a clinic and a pharmacy hand them two
+// "different" boxes that are really the same medicine.
+
+const PT = {
+  en: {
+    greeting: "Hi", cabinet: "My Medicine Cabinet",
+    cabinetSub: "Everything you are taking right now", meds: "medicines",
+    allGood: "No safety issues found",
+    allGoodSub: "No duplicate medicines or interactions across your lists.",
+    yourLists: "Your Rx Lists", library: "Your Library", seeAll: "See all",
+    scanCta: "Scan a prescription", scanCtaSub: "Turn a paper Rx into an Rx List",
+    dupTitle: "Same medicine, different brand", dupBadge: "DUPLICATE",
+    dupBody: (i) => `You have ${i} more than once. These boxes look different but contain the SAME active ingredient — taking them together is a double dose.`,
+    dupTip: "Keep only one of these, or ask your pharmacist which brand to take.",
+    ddiTitle: "Medicines that may clash",
+    ddiBody: "Some medicines can interact. Show this to your pharmacist or doctor.",
+    polyTitle: "You are taking a lot of medicines",
+    polyBody: (n) => `${n} medicines across your lists. Ask a pharmacist to review them so nothing is unnecessary or doubled up.`,
+    rxIngredient: "RxNorm ingredient", from: "from", provider: "Prescribed by",
+    back: "Back", deleteList: "Delete list", removeMed: "Remove",
+    sevHigh: "High", sevMod: "Moderate", sevLow: "Low",
+    verTitle: "Got a new medicine?", verSub: "Type its name or NHI code — we'll check if it's the same as something you already have.",
+    verPlaceholder: "e.g. Zovirax, Acyclovir, 普拿疼, AC49577100",
+    verCheck: "Check", verNotFound: "Not found in the NHI database. Try the brand or generic name.",
+    verDupTitle: "You already have this medicine!",
+    verDupBody: (i) => `This is ${i} — the SAME active ingredient as a medicine already in your cabinet. Taking both is a double dose.`,
+    verNewTitle: "New medicine — no duplicate",
+    verNewBody: "This active ingredient is not in your cabinet yet.",
+    verDdiWarn: "⚠ But it may interact with a medicine you already take:",
+    verAdd: "Add to my cabinet", verYouHave: "You already have:",
+    saveAsList: "Save as Rx List", saveAsListSub: "drugs identified",
+    addedToast: "Added to your cabinet",
+    today: "Today's doses", noDoses: "No reminder times set yet.",
+    courseDay: (d, t) => `Day ${d} of ${t}`, daysLeftN: (n) => `${n} day${n === 1 ? "" : "s"} left`, courseDone: "Course complete",
+    medCard: "Med card for your doctor", medCardSub: "A printable summary of everything you take",
+    print: "Print", share: "Share",
+    newList: "New list", rename: "Rename", cover: "Cover", listName: "List name",
+    addMed: "Add a medicine", addMedPh: "Search a medicine to add…",
+    resetDemo: "Reset demo data", addTo: "Add to", usedFor: "Used for",
+    emptyList: "No medicines in this list yet.",
+  },
+  zhTW: {
+    greeting: "哈囉", cabinet: "我的藥櫃",
+    cabinetSub: "你目前正在服用的所有藥物", meds: "種藥",
+    allGood: "沒有發現安全問題",
+    allGoodSub: "各份藥單之間沒有重複藥物或交互作用。",
+    yourLists: "我的藥單", library: "我的藥單", seeAll: "看全部",
+    scanCta: "掃描處方箋", scanCtaSub: "把紙本處方變成一份藥單",
+    dupTitle: "同一種藥，不同品牌", dupBadge: "重複用藥",
+    dupBody: (i) => `你有不只一個 ${i}。這些藥盒看起來不同，但其實是「同一種成分」——一起吃等於吃了雙倍劑量。`,
+    dupTip: "兩者擇一即可，或詢問藥師該服用哪一個品牌。",
+    ddiTitle: "可能互相影響的藥",
+    ddiBody: "部分藥物可能產生交互作用，請把這些資訊給藥師或醫師看。",
+    polyTitle: "你服用的藥物偏多",
+    polyBody: (n) => `各份藥單合計 ${n} 種藥。建議請藥師整體檢視，避免重複或不必要的用藥。`,
+    rxIngredient: "RxNorm 成分", from: "來自", provider: "開立",
+    back: "返回", deleteList: "刪除藥單", removeMed: "移除",
+    sevHigh: "高", sevMod: "中", sevLow: "低",
+    verTitle: "拿到新的藥？", verSub: "輸入藥名或健保碼，我們幫你看看是不是和現有的藥重複。",
+    verPlaceholder: "例如 Zovirax、Acyclovir、普拿疼、AC49577100",
+    verCheck: "查詢", verNotFound: "健保資料庫查無此藥，試試品牌名或學名。",
+    verDupTitle: "你已經有這個藥了！",
+    verDupBody: (i) => `這是 ${i}——和你藥櫃裡某個藥「成分相同」。兩個一起吃等於雙倍劑量。`,
+    verNewTitle: "新的藥——沒有重複",
+    verNewBody: "這個成分目前不在你的藥櫃中。",
+    verDdiWarn: "⚠ 但它可能與你正在服用的藥產生交互作用：",
+    verAdd: "加入我的藥櫃", verYouHave: "你已經有：",
+    saveAsList: "存成藥單", saveAsListSub: "種藥已辨識",
+    addedToast: "已加入你的藥櫃",
+    today: "今天要吃的藥", noDoses: "尚未設定提醒時間。",
+    courseDay: (d, t) => `第 ${d} 天 / 共 ${t} 天`, daysLeftN: (n) => `還剩 ${n} 天`, courseDone: "療程結束",
+    medCard: "給醫師的藥物卡", medCardSub: "可列印的完整用藥摘要",
+    print: "列印", share: "分享",
+    newList: "新增藥單", rename: "重新命名", cover: "封面", listName: "藥單名稱",
+    addMed: "加入藥物", addMedPh: "搜尋要加入的藥…",
+    resetDemo: "重設示範資料", addTo: "加入", usedFor: "用途",
+    emptyList: "這份藥單還沒有藥。",
+  },
+};
+function usePT() { const { language } = useLang(); return PT[language] || PT.en; }
+
+const RX_COVERS = [
+  { color: "#2563eb", emoji: "💊" }, { color: "#d97706", emoji: "🩹" },
+  { color: "#16a34a", emoji: "🌿" }, { color: "#7c3aed", emoji: "🧪" },
+  { color: "#db2777", emoji: "❤️" }, { color: "#0891b2", emoji: "🫁" },
+];
+function coverFor(i) { return RX_COVERS[((i % RX_COVERS.length) + RX_COVERS.length) % RX_COVERS.length]; }
+
+const SOURCE_META = {
+  clinic:   { en: "Clinic", zh: "診所", icon: "🏥" },
+  hospital: { en: "Hospital", zh: "醫院", icon: "🏨" },
+  pharmacy: { en: "Pharmacy", zh: "藥局", icon: "💊" },
+  ocr:      { en: "Scanned", zh: "掃描", icon: "📷" },
+  manual:   { en: "Added by me", zh: "自己加入", icon: "✍️" },
+};
+function sourceLabel(source, language) {
+  const m = SOURCE_META[source] || SOURCE_META.manual;
+  return `${m.icon} ${language === "en" ? m.en : m.zh}`;
+}
+
+// ── Persistence: the cabinet survives a reload (feature A1) ──────────────────
+const RX_STORAGE_KEY = "rxnorm.patient.rxLists.v1";
+function loadRxLists() {
+  try {
+    const raw = localStorage.getItem(RX_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch {
+    /* corrupt/unavailable storage → fall back to seed */
+  }
+  return seedRxLists();
+}
+function saveRxLists(lists) {
+  try {
+    localStorage.setItem(RX_STORAGE_KEY, JSON.stringify(lists));
+  } catch {
+    /* storage full / disabled — non-fatal */
+  }
+}
+
+// ── Date + course helpers (feature D) ───────────────────────────────────────
+function isoDaysFromNow(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function todayIso() {
+  return isoDaysFromNow(0);
+}
+function daysBetween(aIso, bIso) {
+  const a = new Date(aIso + "T00:00:00");
+  const b = new Date(bIso + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+function courseStatus(course) {
+  if (!course || !course.startDate || !course.durationDays) return null;
+  const day = daysBetween(course.startDate, todayIso()) + 1; // start day = day 1
+  const total = course.durationDays;
+  const done = day > total;
+  return { day: Math.max(1, Math.min(day, total)), total, daysLeft: Math.max(0, total - day), done };
+}
+
+// ── "What is this for?" — ATC code → patient-friendly label (feature A3) ─────
+const USE_FOR = [
+  { p: "A10", en: "Diabetes", zh: "糖尿病", icon: "🩸" },
+  { p: "A02", en: "Stomach / acid", zh: "胃藥", icon: "🩹" },
+  { p: "A11", en: "Vitamin", zh: "維他命", icon: "🧬" },
+  { p: "A12", en: "Mineral", zh: "礦物質", icon: "🦴" },
+  { p: "B01", en: "Blood thinner", zh: "抗凝血", icon: "🩸" },
+  { p: "C03", en: "Water pill", zh: "利尿", icon: "💧" },
+  { p: "C07", en: "Heart / BP", zh: "心臟／血壓", icon: "❤️" },
+  { p: "C08", en: "Blood pressure", zh: "血壓", icon: "❤️" },
+  { p: "C09", en: "Blood pressure", zh: "血壓", icon: "❤️" },
+  { p: "C10", en: "Cholesterol", zh: "膽固醇", icon: "❤️" },
+  { p: "J05", en: "Antiviral", zh: "抗病毒", icon: "🦠" },
+  { p: "J01", en: "Antibiotic", zh: "抗生素", icon: "🦠" },
+  { p: "M01", en: "Pain / inflammation", zh: "消炎止痛", icon: "🔥" },
+  { p: "M04", en: "Gout", zh: "痛風", icon: "🦶" },
+  { p: "N02", en: "Pain / fever", zh: "止痛退燒", icon: "🌡️" },
+  { p: "N05", en: "Calm / sleep", zh: "鎮靜安眠", icon: "😴" },
+  { p: "N06", en: "Mood", zh: "情緒", icon: "🧠" },
+  { p: "H02", en: "Steroid", zh: "類固醇", icon: "💪" },
+  { p: "H03", en: "Thyroid", zh: "甲狀腺", icon: "🦋" },
+  { p: "R06", en: "Allergy", zh: "抗過敏", icon: "🤧" },
+];
+function useForOf(drug, language) {
+  const atc = (drug.atc || "").toUpperCase();
+  if (!atc) return null;
+  const hit = USE_FOR.find((u) => atc.startsWith(u.p));
+  if (hit) return { icon: hit.icon, label: language === "en" ? hit.en : hit.zh };
+  const cat = ATC_CATEGORIES[atc[0]];
+  return cat ? { icon: "💊", label: cat } : null;
+}
+function UseForChip({ drug }) {
+  const { language } = useLang();
+  const u = useForOf(drug, language);
+  if (!u) return null;
+  return (
+    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#3730a3", background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 8, padding: "1px 7px", whiteSpace: "nowrap" }}>
+      {u.icon} {u.label}
+    </span>
+  );
+}
+
+// ── Pill photo (FDA image) with a coloured monogram fallback (feature A2) ────
+const THUMB_PALETTE = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#dc2626"];
+function MedThumb({ med, size = 42 }) {
+  const url = getDrugImage(med.licId);
+  const [ok, setOk] = useState(true);
+  if (url && ok) {
+    return <img src={url} alt="" onError={() => setOk(false)} style={{ width: size, height: size, borderRadius: 10, objectFit: "cover", border: `1px solid ${C.border}`, background: "#fff", flexShrink: 0 }} />;
+  }
+  const letter = (med.ingredient || med.nameEN || "?").trim().charAt(0).toUpperCase();
+  const color = THUMB_PALETTE[(letter.charCodeAt(0) || 0) % THUMB_PALETTE.length];
+  return (
+    <div style={{ width: size, height: size, borderRadius: 10, background: `${color}1a`, color, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: size * 0.42, flexShrink: 0, border: `1px solid ${color}33` }}>
+      {letter}
+    </div>
+  );
+}
+
+// ── Daily dose schedule (feature D) ─────────────────────────────────────────
+function buildSchedule(meds) {
+  const slots = new Map();
+  for (const m of meds) {
+    if (m.reminderOn === false) continue;
+    for (const t of m.times || []) {
+      if (!slots.has(t)) slots.set(t, []);
+      slots.get(t).push(m);
+    }
+  }
+  return [...slots.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([time, items]) => ({ time, items }));
+}
+function TodaySchedule({ meds }) {
+  const L = usePT();
+  const schedule = useMemo(() => buildSchedule(meds), [meds]);
+  if (!schedule.length) return null;
+  return (
+    <div>
+      <div style={{ fontSize: 16, fontWeight: 900, color: C.text, marginBottom: 10 }}>⏰ {L.today}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {schedule.map(({ time, items }) => (
+          <div key={time} style={{ display: "flex", gap: 10, alignItems: "flex-start", border: `1px solid ${C.border}`, borderRadius: 12, padding: "9px 11px", background: "#fff" }}>
+            <div style={{ fontWeight: 900, fontSize: 14, color: C.primary, width: 46, flexShrink: 0 }}>{time}</div>
+            <div style={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {items.map((m, i) => (
+                <span key={i} style={{ fontSize: 12, fontWeight: 700, color: C.text, background: C.bg, borderRadius: 8, padding: "3px 8px" }}>{m.ingredient}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function CourseBadge({ course }) {
+  const L = usePT();
+  const st = courseStatus(course);
+  if (!st) return null;
+  const pct = Math.min(100, Math.round((st.day / st.total) * 100));
+  const color = st.done ? C.primary : C.warning;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color, marginBottom: 4 }}>
+        <span>{L.courseDay(st.day, st.total)}</span>
+        <span>{st.done ? `✓ ${L.courseDone}` : L.daysLeftN(st.daysLeft)}</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: "#e5e7eb", overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 999 }} />
+      </div>
+    </div>
+  );
+}
+
+// Inline mini-search used to add a medicine into a specific list (feature B).
+function AddMedInline({ onAdd }) {
+  const L = usePT();
+  const [q, setQ] = useState("");
+  const results = q.trim().length >= 1 ? searchDrugs(q).slice(0, 5) : [];
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={L.addMedPh}
+        style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#F8FAFC" }}
+      />
+      {results.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+          {results.map(({ drug }) => (
+            <div key={drug.id} {...clickableProps(() => { onAdd(drug); setQ(""); })} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer" }}>
+              <MedThumb med={drug} size={34} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{drug.ingredient}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{drug.nameEN}{drug.strength ? ` · ${drug.strength}` : ""}</div>
+              </div>
+              <span style={{ fontSize: 18, color: C.primary, fontWeight: 800 }}>＋</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Med card for the doctor: printable summary + share (feature C) ───────────
+function buildCabinetCardHtml(rxLists, patientName, language) {
+  const meds = flattenCabinet(rxLists);
+  const dups = findDuplicateGroups(meds);
+  const ddi = checkInteractions(meds);
+  const zh = language !== "en";
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const listBlocks = rxLists
+    .map((list) => {
+      if (!list.items.length) return "";
+      const rows = list.items
+        .map((m) => `<tr><td><b>${esc(m.ingredient)}</b><br/><span style="color:#6b7280;font-size:12px">${esc(m.nameEN)}</span></td><td>${esc(m.strength || "")}</td><td>${esc((m.times || []).join("、"))}</td></tr>`)
+        .join("");
+      const title = esc(zh ? list.titleZh || list.title : list.title);
+      const meta = esc(`${list.date || ""}${list.provider ? " · " + list.provider : ""}`);
+      return `<h3 style="margin:18px 0 4px;font-size:15px">${title}</h3><div style="color:#6b7280;font-size:12px;margin-bottom:6px">${meta}</div><table><thead><tr><th>${zh ? "成分 / 品牌" : "Ingredient / Brand"}</th><th>${zh ? "劑量" : "Dose"}</th><th>${zh ? "服藥時間" : "Times"}</th></tr></thead><tbody>${rows}</tbody></table>`;
+    })
+    .join("");
+  const dupHtml = dups.length
+    ? `<div class="warn"><b>⚠ ${zh ? "重複成分" : "Duplicate ingredients"}:</b> ${dups.map((d) => esc(d.ingredient) + " ×" + d.count).join("、 ")}</div>`
+    : "";
+  const ddiHtml = ddi.length
+    ? `<div class="warn"><b>⚠ ${zh ? "可能交互作用" : "Possible interactions"}:</b><ul style="margin:6px 0 0;padding-left:18px">${ddi.map((a) => `<li>${esc(a.drugA.ingredient)} ↔ ${esc(a.drugB.ingredient)} (${a.severity})</li>`).join("")}</ul></div>`
+    : "";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${zh ? "藥物卡" : "Medication Card"}</title>
+    <style>
+      body{font-family:sans-serif;padding:32px;color:#111;max-width:720px;margin:0 auto}
+      h2{font-size:20px;margin-bottom:2px} p.sub{color:#6b7280;font-size:13px;margin:0 0 16px}
+      table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}
+      th{background:#f1f5f9;padding:8px 10px;text-align:left;font-weight:700;border-bottom:2px solid #e2e8f0}
+      td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+      .warn{background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin:14px 0;font-size:13px;color:#9a3412}
+      @media print{body{padding:14px}}
+    </style></head><body>
+    <h2>🩺 ${zh ? "我的藥物卡" : "My Medication Card"}</h2>
+    <p class="sub">${esc(patientName || "")} &nbsp;·&nbsp; ${new Date().toLocaleDateString(zh ? "zh-TW" : "en-US", { year: "numeric", month: "long", day: "numeric" })} &nbsp;·&nbsp; ${meds.length} ${zh ? "種藥" : "medicines"}</p>
+    ${dupHtml}${ddiHtml}${listBlocks}
+    <p style="margin-top:26px;font-size:11px;color:#94a3b8">RxNorm Taiwan · NHI ${DATA_VERSION.date} · ${zh ? "僅供個人參考，請與醫師／藥師確認" : "For personal reference — verify with your doctor/pharmacist"}</p>
+    <script>window.onload=()=>window.print()<\/script></body></html>`;
+}
+function printCabinetCard(rxLists, patientName, language) {
+  const w = window.open("", "_blank", "width=820,height=640");
+  if (!w) return;
+  w.document.write(buildCabinetCardHtml(rxLists, patientName, language));
+  w.document.close();
+}
+async function shareCabinetCard(rxLists, patientName, language, onCopied) {
+  const meds = flattenCabinet(rxLists);
+  const zh = language !== "en";
+  const lines = meds.map((m) => `• ${m.ingredient} (${m.nameEN})${m.strength ? ` ${m.strength}` : ""}`).join("\n");
+  const dups = findDuplicateGroups(meds);
+  const dupLine = dups.length ? `\n⚠ ${zh ? "重複" : "Duplicates"}: ${dups.map((d) => d.ingredient).join(", ")}` : "";
+  const text = `${patientName || ""} — ${zh ? "用藥清單" : "Medication list"} (${meds.length})\n${lines}${dupLine}`;
+  try {
+    if (navigator.share) { await navigator.share({ title: zh ? "用藥清單" : "Medication list", text }); return; }
+  } catch {
+    /* user cancelled share — fall through to clipboard */
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    onCopied && onCopied();
+  } catch {
+    /* clipboard blocked — nothing else to do */
+  }
+}
+
+// Demo patient: a chronic diabetes/BP patient who catches shingles, visits a
+// clinic, then buys extra medicine at a pharmacy — ending up with a duplicate
+// antiviral (different brand) + DDIs + polypharmacy. Drives every alert.
+function seedRxLists() {
+  const t = (d, times) => ({ ...d, times, reminderOn: true });
+  const acvClinic = { id: "AC-CLINIC-ACV", nameEN: "Acivir 400mg Tablet", nameZH: "艾賽威錠400毫克", ingredient: "Acyclovir", atc: "J05AB01", form: "Tablet", strength: "400mg", price: "8.50", manufacturer: "中化製藥", times: ["08:00", "14:00", "20:00"], reminderOn: true };
+  const acvPharm  = { id: "AC-PHARM-ZVX", nameEN: "Zovirax 400mg F.C. Tablet", nameZH: "若復膜衣錠400毫克", ingredient: "Acyclovir", atc: "J05AB01", form: "Film-coated Tablet", strength: "400mg", price: "15.20", manufacturer: "GSK 葛蘭素史克", times: ["09:00"], reminderOn: true };
+  return [
+    { id: "list-chronic", title: "Chronic meds", titleZh: "慢性處方", source: "hospital", provider: "Hsinchu Hospital · Dr. Wang", date: isoDaysFromNow(-60), cover: { color: "#2563eb", emoji: "🩺" },
+      items: [t(DRUGS[2], ["08:00", "18:00"]), t(DRUGS[3], ["08:00"]), t(DRUGS[10], ["08:00"])] }, // Metformin, Amlodipine, Aspirin
+    { id: "list-shingles", title: "Shingles · Clinic A", titleZh: "帶狀疱疹 · A診所", source: "clinic", provider: "Clinic A · Dr. Chen", date: isoDaysFromNow(-2), cover: { color: "#d97706", emoji: "🩹" },
+      course: { startDate: isoDaysFromNow(-2), durationDays: 7 },
+      items: [acvClinic, t(DRUGS[18], ["08:00"]), t(DRUGS[1], ["08:00", "14:00", "20:00"])] }, // Acyclovir(Acivir), Prednisolone, Acetaminophen
+    { id: "list-pharmacy", title: "Pharmacy refill", titleZh: "藥局加購", source: "pharmacy", provider: "Watsons 屈臣氏", date: isoDaysFromNow(-1), cover: { color: "#16a34a", emoji: "🛒" },
+      items: [acvPharm, t(DRUGS[9], ["12:00", "20:00"])] }, // Acyclovir(Zovirax — different brand!), Ibuprofen
+  ];
+}
+
+// Flatten every Rx List into one cabinet, tagging each med with its source list.
+function flattenCabinet(rxLists) {
+  const out = [];
+  for (const list of rxLists) {
+    for (const d of list.items || []) {
+      out.push({ ...d, _listId: list.id, _listTitle: list.title, _listTitleZh: list.titleZh, _source: list.source });
+    }
+  }
+  return out;
+}
+
+// Group cabinet meds by RxNorm ingredient; keep ingredients that appear in 2+
+// products — the "same medicine, different box" situation (feature #1).
+function findDuplicateGroups(meds) {
+  const groups = new Map();
+  for (const m of meds) {
+    const key = (m.ingredient || "").toLowerCase().trim();
+    if (!key) continue;
+    if (!groups.has(key))
+      groups.set(key, { ingredient: m.ingredient, atc: m.atc, items: [] });
+    groups.get(key).items.push(m);
+  }
+  return [...groups.values()]
+    .filter((g) => g.items.length >= 2)
+    .map((g) => ({ ...g, count: g.items.length }))
+    .sort((a, b) => b.count - a.count);
+}
+
+const POLY_THRESHOLD = 5;
+
+function RxListCover({ cover, size = 56, full = false }) {
+  const c = cover || { color: "#64748b", emoji: "💊" };
+  const dim = full ? { width: "100%", aspectRatio: "1 / 1" } : { width: size, height: size };
+  return (
+    <div style={{ ...dim, borderRadius: 16, background: `linear-gradient(135deg, ${c.color}, ${c.color}bb)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: full ? 42 : size * 0.45, boxShadow: `0 6px 16px ${c.color}44`, flexShrink: 0 }}>
+      <span aria-hidden="true">{c.emoji}</span>
+    </div>
+  );
+}
+
+function SeverityPill({ severity }) {
+  const L = usePT();
+  const cfg = SEVERITY_CFG[severity] || SEVERITY_CFG.LOW;
+  const label = severity === "HIGH" ? L.sevHigh : severity === "MODERATE" ? L.sevMod : L.sevLow;
+  return (
+    <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", background: cfg.color, borderRadius: 8, padding: "2px 7px" }}>
+      {cfg.icon} {label}
+    </span>
+  );
+}
+
+function DuplicateAlertCard({ group, onOpenDrug, onRemoveMed }) {
+  const L = usePT();
+  const { language } = useLang();
+  return (
+    <div style={{ border: "2px solid #fca5a5", background: "#fef2f2", borderRadius: 16, padding: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 20 }}>🔴</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 900, fontSize: 14, color: "#b91c1c" }}>{L.dupTitle}</div>
+          <div style={{ fontSize: 11, color: "#b91c1c", opacity: 0.85 }}>{L.rxIngredient}: <b>{group.ingredient}</b>{group.atc ? ` · ATC ${group.atc}` : ""}</div>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", background: "#dc2626", borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>{L.dupBadge} ×{group.count}</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: "#7f1d1d", lineHeight: 1.55, marginBottom: 10 }}>{L.dupBody(group.ingredient)}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {group.items.map((m, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.78)", borderRadius: 10, padding: "8px 10px" }}>
+            <MedThumb med={m} size={38} />
+            <div {...clickableProps(() => onOpenDrug(m))} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: C.text }}>{m.nameEN}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>{m.nameZH}{m.strength ? ` · ${m.strength}` : ""} · {L.from} {language === "en" ? m._listTitle : (m._listTitleZh || m._listTitle)}</div>
+            </div>
+            {onRemoveMed && (
+              <button onClick={() => onRemoveMed(m)} aria-label={L.removeMed} title={L.removeMed} style={{ border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12, fontWeight: 800, borderRadius: 8, padding: "5px 9px", cursor: "pointer", flexShrink: 0 }}>✕</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11.5, color: "#7f1d1d", background: "rgba(255,255,255,.6)", borderRadius: 8, padding: "7px 9px" }}>💡 {L.dupTip}</div>
+    </div>
+  );
+}
+
+function DdiAlertCard({ alerts }) {
+  const L = usePT();
+  const { language } = useLang();
+  const worst = alerts[0];
+  const cfg = SEVERITY_CFG[worst.severity] || SEVERITY_CFG.LOW;
+  return (
+    <div style={{ border: `2px solid ${cfg.border}`, background: cfg.bg, borderRadius: 16, padding: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 20 }}>⚠️</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 900, fontSize: 14, color: cfg.color }}>{L.ddiTitle} ({alerts.length})</div>
+          <div style={{ fontSize: 11.5, color: cfg.color, opacity: 0.9 }}>{L.ddiBody}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+        {alerts.map((a, i) => (
+          <div key={i} style={{ background: "rgba(255,255,255,.72)", borderRadius: 10, padding: "9px 11px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+              <span style={{ fontWeight: 800, fontSize: 13, color: C.text }}>{a.drugA.ingredient}</span>
+              <span style={{ color: C.muted }}>↔</span>
+              <span style={{ fontWeight: 800, fontSize: 13, color: C.text }}>{a.drugB.ingredient}</span>
+              <SeverityPill severity={a.severity} />
+            </div>
+            <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{language === "en" ? a.en : a.zh}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PolyAlertCard({ count }) {
+  const L = usePT();
+  return (
+    <div style={{ border: "2px solid #fcd34d", background: "#fffbeb", borderRadius: 16, padding: 14, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 20 }}>🟡</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 900, fontSize: 14, color: "#b45309" }}>{L.polyTitle}</div>
+        <div style={{ fontSize: 12, color: "#92400e", marginTop: 2, lineHeight: 1.5 }}>{L.polyBody(count)}</div>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 900, color: "#b45309", flexShrink: 0 }}>{count}</div>
+    </div>
+  );
+}
+
+// The cabinet-wide safety panel: duplicates (#1) + DDI (#3) + polypharmacy (#4).
+function CabinetSafety({ meds, onOpenDrug, onRemoveMed }) {
+  const L = usePT();
+  const dupGroups = useMemo(() => findDuplicateGroups(meds), [meds]);
+  const ddi = useMemo(() => checkInteractions(meds), [meds]);
+  const poly = meds.length;
+  if (!dupGroups.length && !ddi.length && poly < POLY_THRESHOLD) {
+    return (
+      <div style={{ border: `1px solid ${C.border}`, background: "#f0fdf4", borderRadius: 16, padding: 16, textAlign: "center" }}>
+        <div style={{ fontSize: 28 }}>✅</div>
+        <div style={{ fontWeight: 800, color: C.primary, marginTop: 4 }}>{L.allGood}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{L.allGoodSub}</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {dupGroups.map((g, i) => <DuplicateAlertCard key={"dup" + i} group={g} onOpenDrug={onOpenDrug} onRemoveMed={onRemoveMed} />)}
+      {ddi.length > 0 && <DdiAlertCard alerts={ddi} />}
+      {poly >= POLY_THRESHOLD && <PolyAlertCard count={poly} />}
+    </div>
+  );
+}
+
+// Common commercial brand names → RxNorm ingredient. The NHI database stores
+// generic / Chinese names, so brand boxes a patient actually holds (Zovirax,
+// Panadol, Lipitor…) won't match a raw text search. This tiny synonym layer is
+// exactly what RxNorm does: collapse a brand name down to its ingredient.
+const BRAND_ALIASES = {
+  zovirax: { ingredient: "Acyclovir", atc: "J05AB01" },
+  acivir: { ingredient: "Acyclovir", atc: "J05AB01" },
+  aciclovir: { ingredient: "Acyclovir", atc: "J05AB01" },
+  acyclovir: { ingredient: "Acyclovir", atc: "J05AB01" },
+  panadol: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  tylenol: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  paracetamol: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  acetaminophen: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  scanol: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  普拿疼: { ingredient: "Acetaminophen", atc: "N02BE01" },
+  brufen: { ingredient: "Ibuprofen", atc: "M01AE01" },
+  advil: { ingredient: "Ibuprofen", atc: "M01AE01" },
+  nurofen: { ingredient: "Ibuprofen", atc: "M01AE01" },
+  bokey: { ingredient: "Aspirin", atc: "B01AC06" },
+  aspirin: { ingredient: "Aspirin", atc: "B01AC06" },
+  glucophage: { ingredient: "Metformin", atc: "A10BA02" },
+  norvasc: { ingredient: "Amlodipine", atc: "C08CA01" },
+  lipitor: { ingredient: "Atorvastatin", atc: "C10AA05" },
+  zocor: { ingredient: "Simvastatin", atc: "C10AA01" },
+  crestor: { ingredient: "Rosuvastatin", atc: "C10AA07" },
+  losec: { ingredient: "Omeprazole", atc: "A02BC01" },
+  prilosec: { ingredient: "Omeprazole", atc: "A02BC01" },
+  nexium: { ingredient: "Esomeprazole", atc: "A02BC05" },
+  augmentin: { ingredient: "Amoxicillin", atc: "J01CA04" },
+  amoxil: { ingredient: "Amoxicillin", atc: "J01CA04" },
+  cipro: { ingredient: "Ciprofloxacin", atc: "J01MA02" },
+  coumadin: { ingredient: "Warfarin", atc: "B01AA03" },
+  voltaren: { ingredient: "Diclofenac", atc: "M01AB05" },
+  cozaar: { ingredient: "Losartan", atc: "C09CA01" },
+};
+function titleCase(s) {
+  return s.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+}
+// Resolve a free-text query to a drug, trying, in order: the NHI search index,
+// the brand→ingredient alias map, then the patient's own cabinet (their boxes).
+function resolveMed(query, rxLists) {
+  const q = query.trim();
+  if (!q) return null;
+  const ql = q.toLowerCase();
+  const hits = searchDrugs(q);
+  if (hits.length) return hits[0].drug;
+  const alias = BRAND_ALIASES[ql];
+  if (alias) {
+    const grp = searchByIngredient(alias.ingredient);
+    const real = grp[0] && grp[0].brands && grp[0].brands[0];
+    return { id: "brand-" + ql, nameEN: titleCase(q), nameZH: real ? real.nameZH : "", ingredient: alias.ingredient, atc: alias.atc || (real ? real.atc : ""), form: real ? real.form : "", strength: real ? real.strength : "", licId: real ? real.licId : undefined };
+  }
+  const inCab = flattenCabinet(rxLists).find(
+    (m) => (m.nameEN || "").toLowerCase().includes(ql) || (m.nameZH || "").includes(q) || (m.ingredient || "").toLowerCase().includes(ql),
+  );
+  return inCab || null;
+}
+
+// Live typeahead suggestions for the verifier: brand aliases first (so common
+// spellings / brand names the NHI index lacks still surface — e.g. "acyclovir"
+// when NHI stores "aciclovir"), then NHI search hits, deduped by ingredient so
+// the patient sees one clean row per active drug.
+function suggestMeds(q) {
+  const ql = (q || "").trim().toLowerCase();
+  if (ql.length < 1) return [];
+  const out = [];
+  const seen = new Set();
+  const add = (drug, brandLabel) => {
+    const key = (drug.ingredient || drug.id || "").toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(brandLabel ? { ...drug, _brand: brandLabel } : drug);
+  };
+  for (const brand in BRAND_ALIASES) {
+    if (out.length >= 7) break;
+    if (!brand.includes(ql)) continue;
+    const a = BRAND_ALIASES[brand];
+    const grp = searchByIngredient(a.ingredient);
+    const real = grp[0] && grp[0].brands && grp[0].brands[0];
+    add(real || { id: "brand-" + brand, nameEN: titleCase(brand), nameZH: "", ingredient: a.ingredient, atc: a.atc, form: "", strength: "" }, titleCase(brand));
+  }
+  for (const h of searchDrugs(q)) {
+    if (out.length >= 7) break;
+    add(h.drug);
+  }
+  return out.slice(0, 7);
+}
+
+// Feature #2 — "Is this the same medicine?" verifier.
+// The patient types a brand name / generic / Chinese name / NHI code; we resolve
+// it through the SAME RxNorm normaliser (searchDrugs) the rest of the app uses,
+// then tell them whether that ingredient is already in their cabinet.
+function MedVerifier({ rxLists, onAdd, onOpenDrug }) {
+  const L = usePT();
+  const { language } = useLang();
+  const [q, setQ] = useState("");
+  const [result, setResult] = useState(null); // { drug } | { notFound:true }
+  const [targetList, setTargetList] = useState("list-manual");
+  const [open, setOpen] = useState(false); // typeahead dropdown
+  const boxRef = useRef();
+  const cabinet = useMemo(() => flattenCabinet(rxLists), [rxLists]);
+  const suggestions = useMemo(() => suggestMeds(q), [q]);
+
+  useEffect(() => {
+    function onDoc(e) { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  function pick(d) {
+    setResult({ drug: d });
+    setQ(d.ingredient || d.nameEN || "");
+    setOpen(false);
+  }
+  function run() {
+    const query = q.trim();
+    if (!query) return;
+    if (suggestions.length) { pick(suggestions[0]); return; } // take best typeahead match
+    const drug = resolveMed(query, rxLists);
+    setResult(drug ? { drug } : { notFound: true });
+    setOpen(false);
+  }
+
+  const drug = result?.drug;
+  const existing = drug
+    ? cabinet.find((m) => (m.ingredient || "").toLowerCase() === (drug.ingredient || "").toLowerCase())
+    : null;
+  const ddiHit = drug
+    ? checkInteractions([drug, ...cabinet]).find((a) => a.drugA.id === drug.id || a.drugB.id === drug.id || (a.drugA.ingredient || "").toLowerCase() === (drug.ingredient || "").toLowerCase() || (a.drugB.ingredient || "").toLowerCase() === (drug.ingredient || "").toLowerCase())
+    : null;
+
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, background: "#fff" }}>
+      <div style={{ fontWeight: 900, fontSize: 15, color: C.text }}>🔁 {L.verTitle}</div>
+      <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.45 }}>{L.verSub}</div>
+      <div ref={boxRef} style={{ position: "relative", marginTop: 10 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setOpen(true); if (result) setResult(null); }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(e) => { if (e.key === "Enter") run(); if (e.key === "Escape") setOpen(false); }}
+            placeholder={L.verPlaceholder}
+            style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 12, border: `1px solid ${open && suggestions.length ? C.primary : C.border}`, fontSize: 13, color: C.text, background: "#F8FAFC" }}
+          />
+          <button onClick={run} style={{ border: "none", background: C.primary, color: "#fff", fontWeight: 800, fontSize: 13, borderRadius: 12, padding: "10px 16px", cursor: "pointer", flexShrink: 0 }}>{L.verCheck}</button>
+        </div>
+
+        {open && suggestions.length > 0 && (
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, zIndex: 300, background: "#fff", border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.12)", overflow: "hidden" }}>
+            {suggestions.map((d, i) => (
+              <div
+                key={d.id || i}
+                onMouseDown={() => pick(d)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", cursor: "pointer", borderBottom: i < suggestions.length - 1 ? `1px solid ${C.border}` : "none" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f7ff")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+              >
+                <MedThumb med={d} size={34} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 800, fontSize: 13, color: C.text }}>{d.ingredient}</span>
+                    <UseForChip drug={d} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d._brand ? `${d._brand} · ` : ""}{d.nameEN}{d.strength ? ` · ${d.strength}` : ""}</div>
+                </div>
+                <span style={{ fontSize: 16, color: C.primary, fontWeight: 800, flexShrink: 0 }}>›</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {result?.notFound && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "9px 11px" }}>{L.verNotFound}</div>
+      )}
+
+      {drug && (
+        <div style={{ marginTop: 12, border: `2px solid ${existing ? "#fca5a5" : C.border}`, background: existing ? "#fef2f2" : "#f0fdf4", borderRadius: 14, padding: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{existing ? "🔴" : "🆕"}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 14, color: existing ? "#b91c1c" : C.primary }}>{existing ? L.verDupTitle : L.verNewTitle}</div>
+              <div style={{ fontSize: 11.5, color: existing ? "#b91c1c" : C.muted, opacity: 0.9 }}>{L.rxIngredient}: <b>{drug.ingredient}</b></div>
+            </div>
+          </div>
+
+          <div {...clickableProps(() => onOpenDrug(drug))} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, background: "rgba(255,255,255,.8)", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>
+            <MedThumb med={drug} size={38} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: C.text }}>{drug.nameEN}</div>
+              <div style={{ fontSize: 11, color: C.muted, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>{drug.nameZH}{drug.strength ? ` · ${drug.strength}` : ""} <UseForChip drug={drug} /></div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12.5, color: existing ? "#7f1d1d" : C.muted, lineHeight: 1.5, marginTop: 10 }}>
+            {existing ? L.verDupBody(drug.ingredient) : L.verNewBody}
+          </div>
+
+          {existing && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#7f1d1d", background: "rgba(255,255,255,.7)", borderRadius: 8, padding: "8px 10px" }}>
+              {L.verYouHave} <b>{existing.nameEN}</b> ({language === "en" ? existing._listTitle : (existing._listTitleZh || existing._listTitle)})
+            </div>
+          )}
+
+          {ddiHit && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 8, padding: "8px 10px", lineHeight: 1.45 }}>
+              {L.verDdiWarn}<br />
+              <b>{ddiHit.drugA.ingredient} ↔ {ddiHit.drugB.ingredient}</b> — {language === "en" ? ddiHit.en : ddiHit.zh}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{L.addTo}</span>
+            <select value={targetList} onChange={(e) => setTargetList(e.target.value)} style={{ flex: 1, minWidth: 0, padding: "9px 10px", borderRadius: 10, border: `1px solid ${C.border}`, fontSize: 12.5, color: C.text, background: "#fff" }}>
+              <option value="list-manual">✍️ {SOURCE_META.manual[language === "en" ? "en" : "zh"]}</option>
+              {rxLists.filter((l) => l.id !== "list-manual").map((l) => (
+                <option key={l.id} value={l.id}>{language === "en" ? l.title : (l.titleZh || l.title)}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => { onAdd(drug, targetList); setResult(null); setQ(""); }} style={{ marginTop: 10, width: "100%", border: "none", background: existing ? "#b91c1c" : C.primary, color: "#fff", fontWeight: 800, fontSize: 13, borderRadius: 12, padding: "11px 14px", cursor: "pointer" }}>➕ {L.verAdd}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Home — the medicine cabinet dashboard.
+function PatientHome({ rxLists, userName, onOpenList, onScan, onOpenDrug, onAddDrug, onRemoveMed, onPrintCard, onShareCard }) {
+  const L = usePT();
+  const { language } = useLang();
+  const meds = useMemo(() => flattenCabinet(rxLists), [rxLists]);
+  const firstName = (userName || "").split(" ")[0] || (language === "en" ? "there" : "你");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <div style={{ fontSize: 13, color: C.muted }}>{L.greeting}, {firstName} 👋</div>
+        <div style={{ fontSize: 20, fontWeight: 900, color: C.text }}>{L.cabinet}</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{L.cabinetSub} · {meds.length} {L.meds}</div>
+      </div>
+
+      <CabinetSafety meds={meds} onOpenDrug={onOpenDrug} onRemoveMed={onRemoveMed} />
+
+      <TodaySchedule meds={meds} />
+
+      <MedVerifier rxLists={rxLists} onAdd={onAddDrug} onOpenDrug={onOpenDrug} />
+
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: C.text }}>{L.yourLists}</div>
+        </div>
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+          {rxLists.map((list) => (
+            <div key={list.id} {...clickableProps(() => onOpenList(list.id))} style={{ width: 132, flexShrink: 0, cursor: "pointer" }}>
+              <RxListCover cover={list.cover} size={132} />
+              <div style={{ fontWeight: 800, fontSize: 13, color: C.text, marginTop: 6, lineHeight: 1.25 }}>{language === "en" ? list.title : (list.titleZh || list.title)}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sourceLabel(list.source, language)} · {list.items.length} {L.meds}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Med card for the doctor (feature C) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, border: `1px solid ${C.border}`, background: "#fff" }}>
+        <div style={{ fontSize: 26 }}>🩺</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, color: C.text }}>{L.medCard}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{L.medCardSub}</div>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={onShareCard} style={{ border: `1px solid ${C.border}`, background: "#fff", color: C.text, fontWeight: 700, fontSize: 12, borderRadius: 10, padding: "8px 11px", cursor: "pointer" }}>↗ {L.share}</button>
+          <button onClick={onPrintCard} style={{ border: "none", background: C.primary, color: "#fff", fontWeight: 700, fontSize: 12, borderRadius: 10, padding: "8px 11px", cursor: "pointer" }}>🖨 {L.print}</button>
+        </div>
+      </div>
+
+      <div {...clickableProps(onScan)} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, border: `1px dashed ${C.primary}`, background: C.staffBg, cursor: "pointer" }}>
+        <div style={{ fontSize: 26 }}>📷</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, color: C.primary }}>{L.scanCta}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{L.scanCtaSub}</div>
+        </div>
+        <div style={{ fontSize: 20, color: C.primary }}>›</div>
+      </div>
+    </div>
+  );
+}
+
+function CabinetMedRow({ med, onClick, rightSlot, dupFlag }) {
+  return (
+    <div {...clickableProps(onClick)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer" }}>
+      <MedThumb med={med} size={44} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{med.nameEN}</span>
+          <UseForChip drug={med} />
+          {dupFlag && <span style={{ fontSize: 10, fontWeight: 800, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: "1px 6px" }}>⚠ {dupFlag}</span>}
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{med.nameZH}</div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>
+          <span style={{ fontWeight: 700, color: C.primary }}>{med.ingredient}</span>
+          {med.strength ? ` · ${med.strength}` : ""}{med.atc ? <> · ATC <AtcLink atc={med.atc} /></> : null}
+          {(med.times || []).length ? ` · ⏰ ${med.times.join(", ")}` : ""}
+        </div>
+      </div>
+      {rightSlot}
+    </div>
+  );
+}
+
+function RxListDetail({ list, allMeds, onBack, onOpenDrug, onRemoveMed, onDeleteList, onRename, onSetCover, onAddMed }) {
+  const L = usePT();
+  const { language } = useLang();
+  const [editName, setEditName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [coverOpen, setCoverOpen] = useState(false);
+  const cabinetIngrCount = useMemo(() => {
+    const m = new Map();
+    for (const x of allMeds) { const k = (x.ingredient || "").toLowerCase(); if (k) m.set(k, (m.get(k) || 0) + 1); }
+    return m;
+  }, [allMeds]);
+  const ddi = useMemo(() => checkInteractions(list.items), [list.items]);
+  const displayTitle = language === "en" ? list.title : (list.titleZh || list.title);
+
+  function startRename() { setNameDraft(displayTitle); setEditName(true); }
+  function commitRename() {
+    const v = nameDraft.trim();
+    if (v) onRename(v);
+    setEditName(false);
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div {...clickableProps(onBack)} style={{ fontSize: 13, fontWeight: 800, color: C.primary, cursor: "pointer" }}>‹ {L.back}</div>
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <div {...clickableProps(() => onSetCover && setCoverOpen((v) => !v))} style={{ cursor: onSetCover ? "pointer" : "default" }} title={L.cover}>
+          <RxListCover cover={list.cover} size={84} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editName ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setEditName(false); }}
+              style={{ width: "100%", boxSizing: "border-box", fontSize: 17, fontWeight: 800, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.primary}`, color: C.text }}
+            />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{displayTitle}</div>
+              {onRename && <button onClick={startRename} aria-label={L.rename} title={L.rename} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: C.muted, padding: 2 }}>✏️</button>}
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{sourceLabel(list.source, language)} · {list.date}</div>
+          {list.provider && <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{L.provider}: {list.provider}</div>}
+        </div>
+      </div>
+
+      {coverOpen && onSetCover && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: 10, border: `1px solid ${C.border}`, borderRadius: 12, background: "#fff" }}>
+          {RX_COVERS.map((c, i) => (
+            <div key={i} {...clickableProps(() => { onSetCover(c); setCoverOpen(false); })} style={{ cursor: "pointer" }}>
+              <RxListCover cover={c} size={42} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {courseStatus(list.course) && (
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 12px", background: "#fffdf7" }}>
+          <CourseBadge course={list.course} />
+        </div>
+      )}
+
+      {ddi.length > 0 && <DdiAlertCard alerts={ddi} />}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {list.items.length === 0 && (
+          <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", padding: "14px 0" }}>{L.emptyList}</div>
+        )}
+        {list.items.map((m, i) => {
+          const dup = (cabinetIngrCount.get((m.ingredient || "").toLowerCase()) || 0) > 1;
+          return (
+            <CabinetMedRow
+              key={m.id + "-" + i}
+              med={m}
+              dupFlag={dup ? L.dupBadge : null}
+              onClick={() => onOpenDrug(m)}
+              rightSlot={
+                <button onClick={(e) => { e.stopPropagation(); onRemoveMed(m.id); }} aria-label={L.removeMed} style={{ border: "none", background: "transparent", color: C.danger, fontSize: 18, cursor: "pointer", padding: 4, flexShrink: 0 }}>✕</button>
+              }
+            />
+          );
+        })}
+      </div>
+
+      {onAddMed && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 6 }}>➕ {L.addMed}</div>
+          <AddMedInline onAdd={onAddMed} />
+        </div>
+      )}
+
+      <button onClick={onDeleteList} style={{ alignSelf: "flex-start", marginTop: 4, border: `1px solid ${C.danger}44`, background: "#fff5f5", color: C.danger, fontWeight: 700, fontSize: 12, borderRadius: 10, padding: "8px 14px", cursor: "pointer" }}>🗑 {L.deleteList}</button>
+    </div>
+  );
+}
+
+// Your Library — grid of Rx Lists, or one list's detail when opened.
+function RxListsView({ rxLists, setRxLists, openListId, setOpenListId, onOpenDrug, onScan, onResetDemo }) {
+  const L = usePT();
+  const { language } = useLang();
+  const open = rxLists.find((l) => l.id === openListId) || null;
+
+  const patchOpen = (patch) => setRxLists((prev) => prev.map((l) => (l.id === open.id ? { ...l, ...patch } : l)));
+
+  function createList() {
+    const id = "list-" + Date.now();
+    setRxLists((prev) => [...prev, { id, title: "New list", titleZh: "新藥單", source: "manual", provider: "", date: todayIso(), cover: coverFor(rxLists.length), items: [] }]);
+    setOpenListId(id);
+  }
+
+  if (open) {
+    return (
+      <RxListDetail
+        list={open}
+        allMeds={flattenCabinet(rxLists)}
+        onBack={() => setOpenListId(null)}
+        onOpenDrug={onOpenDrug}
+        onRemoveMed={(medId) => setRxLists((prev) => prev.map((l) => l.id === open.id ? { ...l, items: l.items.filter((m) => m.id !== medId) } : l))}
+        onDeleteList={() => { setRxLists((prev) => prev.filter((l) => l.id !== open.id)); setOpenListId(null); }}
+        onRename={(title) => patchOpen({ title, titleZh: title })}
+        onSetCover={(cover) => patchOpen({ cover })}
+        onAddMed={(drug) => setRxLists((prev) => prev.map((l) => l.id === open.id ? { ...l, items: l.items.some((m) => m.id === drug.id) ? l.items : [...l.items, { ...drug }] } : l))}
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: C.text }}>{L.library}</div>
+        <button onClick={createList} style={{ border: "none", background: C.primary, color: "#fff", fontWeight: 800, fontSize: 12.5, borderRadius: 10, padding: "8px 13px", cursor: "pointer" }}>＋ {L.newList}</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {rxLists.map((list) => (
+          <div key={list.id} {...clickableProps(() => setOpenListId(list.id))} style={{ cursor: "pointer", border: `1px solid ${C.border}`, borderRadius: 16, padding: 10, background: "#fff" }}>
+            <RxListCover cover={list.cover} full />
+            <div style={{ fontWeight: 800, fontSize: 13, color: C.text, marginTop: 8, lineHeight: 1.25 }}>{language === "en" ? list.title : (list.titleZh || list.title)}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>{sourceLabel(list.source, language)} · {list.items.length} {L.meds}</div>
+            {courseStatus(list.course) && <CourseBadge course={list.course} />}
+          </div>
+        ))}
+      </div>
+      <div {...clickableProps(onScan)} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, border: `1px dashed ${C.primary}`, background: C.staffBg, cursor: "pointer" }}>
+        <div style={{ fontSize: 24 }}>📷</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, color: C.primary }}>{L.scanCta}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{L.scanCtaSub}</div>
+        </div>
+        <div style={{ fontSize: 20, color: C.primary }}>›</div>
+      </div>
+      {onResetDemo && (
+        <button onClick={onResetDemo} style={{ alignSelf: "center", border: "none", background: "transparent", color: C.muted, fontSize: 11.5, textDecoration: "underline", cursor: "pointer", marginTop: 2 }}>↺ {L.resetDemo}</button>
+      )}
+    </div>
+  );
+}
+
 function AppInner() {
   const [tab, setTab] = useState("scan");
   const [showLogin, setShowLogin] = useState(false);
@@ -8883,10 +9932,20 @@ function AppInner() {
     { ...DRUGS[7], times: ["08:00"], reminderOn: true },
   ]);
 
-  const { isAdmin, isStaff, logout } = useAuth();
+  const { isAdmin, isStaff, isPatient, user, logout } = useAuth();
+
+  // ── Patient (Rx Lists) state ──────────────────────────────────────────────
+  const [rxLists, setRxLists] = useState(loadRxLists); // persisted in localStorage
+  const [openListId, setOpenListId] = useState(null); // open playlist in Library
+  const [patientDrug, setPatientDrug] = useState(null); // drug detail modal
+
+  // Persist the cabinet so it survives a reload (feature A1).
+  useEffect(() => {
+    saveRxLists(rxLists);
+  }, [rxLists]);
 
   const theme = C;
-  const isSignedIn = isAdmin || isStaff;
+  const isSignedIn = isAdmin || isStaff || isPatient;
   const T = LANG[language];
 
   useEffect(() => {
@@ -8956,17 +10015,65 @@ function AppInner() {
 
   useEffect(() => {
     function h(e) {
+      if (isPatient) return; // patients see DDI inside their cabinet, not the staff tab
       setDdiPreset(e.detail);
       setTab("interact");
     }
     window.addEventListener("send-to-ddi", h);
     return () => window.removeEventListener("send-to-ddi", h);
-  }, []);
+  }, [isPatient]);
+
+  // Patient lands on Home (cabinet) right after signing in.
+  useEffect(() => {
+    if (isPatient) setTab("home");
+  }, [isPatient]);
+
+  // Scan / typed prescription → save as a new Rx List (playlist), then surface
+  // any duplicate ingredients it introduced into the cabinet.
+  useEffect(() => {
+    function h(e) {
+      const drugs = e.detail?.drugs || [];
+      if (!drugs.length) return;
+      const id = "list-" + Date.now();
+      const newList = {
+        id,
+        title: "Scanned prescription",
+        titleZh: "掃描處方",
+        source: e.detail?.source || "ocr",
+        provider: "",
+        date: new Date().toISOString().slice(0, 10),
+        cover: coverFor(rxLists.length),
+        items: drugs.map((d) => ({ ...d })),
+      };
+      const existing = new Set(
+        flattenCabinet(rxLists).map((m) => (m.ingredient || "").toLowerCase()),
+      );
+      const dupCount = new Set(
+        drugs
+          .map((d) => (d.ingredient || "").toLowerCase())
+          .filter((k) => k && existing.has(k)),
+      ).size;
+      setRxLists((prev) => [...prev, newList]);
+      setOpenListId(id);
+      setTab("rxlists");
+      setToast(
+        dupCount > 0
+          ? `Saved · ⚠ ${dupCount} duplicate ingredient${dupCount > 1 ? "s" : ""} already in your cabinet`
+          : `Saved · ${drugs.length} medicine${drugs.length > 1 ? "s" : ""} added`,
+      );
+      setTimeout(() => setToast(""), 2800);
+    }
+    window.addEventListener("save-rx-list", h);
+    return () => window.removeEventListener("save-rx-list", h);
+  }, [rxLists]);
 
   const tabs = [
-    { id: "search", icon: "🔍", title: T.search },
+    // Staff/admin: the bottom-left 🔍 opens the richer Drug Lookup search (the
+    // separate 🧬 Lookup tab is merged in here). Guests keep the basic search.
+    isStaff
+      ? { id: "lookup", icon: "🔍", title: T.lookup }
+      : { id: "search", icon: "🔍", title: T.search },
     { id: "scan", icon: "📷", title: T.scan },
-    { id: "lookup", icon: "🧬", title: T.lookup, minRole: "staff" },
     { id: "interact", icon: "⚠️", title: T.interact, minRole: "staff" },
     { id: "admin", icon: "🛠️", title: T.admin, minRole: "admin" },
     { id: "settings", icon: "⚙️", title: T.settings },
@@ -8977,6 +10084,8 @@ function AppInner() {
   });
 
   const pageTitle = {
+    home: "Medicine Cabinet",
+    rxlists: "My Rx Lists",
     scan: T.scan,
     search: T.search,
     lookup: T.lookup,
@@ -9015,6 +10124,64 @@ function AppInner() {
       setToast("");
     }, 2000);
   }
+
+  // Patient: add a single drug into the cabinet (a manual "Added by me" list).
+  function addDrugToCabinet(drug, listId = "list-manual") {
+    let dup = false;
+    setRxLists((prev) => {
+      const idx = prev.findIndex((l) => l.id === listId);
+      if (idx >= 0) {
+        if (prev[idx].items.some((m) => m.id === drug.id)) {
+          dup = true;
+          return prev;
+        }
+        const copy = [...prev];
+        copy[idx] = { ...copy[idx], items: [...copy[idx].items, { ...drug }] };
+        return copy;
+      }
+      // Target list missing → create the default "Added by me" list.
+      return [
+        ...prev,
+        {
+          id: "list-manual",
+          title: "Added by me",
+          titleZh: "自己加入",
+          source: "manual",
+          provider: "",
+          date: todayIso(),
+          cover: { color: "#7c3aed", emoji: "➕" },
+          items: [{ ...drug }],
+        },
+      ];
+    });
+    setToast(dup ? "Already in your cabinet" : "Added to your cabinet");
+    setTimeout(() => setToast(""), 2000);
+  }
+
+  // Remove a single med from whichever list it lives in (used by alert cards).
+  function removeMedFromCabinet(med) {
+    setRxLists((prev) =>
+      prev.map((l) => (l.id === med._listId ? { ...l, items: l.items.filter((m) => m.id !== med.id) } : l)),
+    );
+  }
+
+  function resetDemoData() {
+    setRxLists(seedRxLists());
+    setOpenListId(null);
+    setToast("Demo data reset");
+    setTimeout(() => setToast(""), 1600);
+  }
+
+  const addDrug = isPatient ? addDrugToCabinet : addToMyDrugs;
+
+  // Patient gets its own bottom-nav: Home (cabinet), Library, Scan, Search.
+  const patientTabs = [
+    { id: "home", icon: "🏠", title: "Home" },
+    { id: "rxlists", icon: "🗂️", title: "My Rx Lists" },
+    { id: "scan", icon: "📷", title: T.scan },
+    { id: "search", icon: "🔍", title: T.search },
+  ];
+  const navTabs = isPatient ? patientTabs : tabs;
 
   return (
     <LangCtx.Provider value={{ T, language, setLanguage }}>
@@ -9220,7 +10387,7 @@ function AppInner() {
                     }}
                   >
                     {isSignedIn
-                      ? `${T.signedInAs} ${isAdmin ? "Admin" : "Staff"}`
+                      ? `${T.signedInAs} ${isAdmin ? "Admin" : isStaff ? "Staff" : "Patient"}`
                       : T.notSignedIn}
                   </div>
                 </div>
@@ -9343,14 +10510,46 @@ function AppInner() {
               color: theme.text,
             }}
           >
+            {tab === "home" && isPatient && (
+              <PatientHome
+                rxLists={rxLists}
+                userName={user?.name}
+                onOpenList={(id) => {
+                  setOpenListId(id);
+                  setTab("rxlists");
+                }}
+                onScan={() => setTab("scan")}
+                onOpenDrug={setPatientDrug}
+                onAddDrug={addDrugToCabinet}
+                onRemoveMed={removeMedFromCabinet}
+                onPrintCard={() => printCabinetCard(rxLists, user?.name, language)}
+                onShareCard={() =>
+                  shareCabinetCard(rxLists, user?.name, language, () => {
+                    setToast("Copied to clipboard");
+                    setTimeout(() => setToast(""), 1600);
+                  })
+                }
+              />
+            )}
+            {tab === "rxlists" && isPatient && (
+              <RxListsView
+                rxLists={rxLists}
+                setRxLists={setRxLists}
+                openListId={openListId}
+                setOpenListId={setOpenListId}
+                onOpenDrug={setPatientDrug}
+                onScan={() => setTab("scan")}
+                onResetDemo={resetDemoData}
+              />
+            )}
             {tab === "search" && (
               <DrugSearch
                 key={`search-${navSeq}`}
-                addToMyDrugs={addToMyDrugs}
+                addToMyDrugs={addDrug}
                 initQuery={lookupQuery}
               />
             )}
-            {tab === "scan" && <ScanRx addToMyDrugs={addToMyDrugs} />}
+            {tab === "scan" && <ScanRx addToMyDrugs={addDrug} />}
             {tab === "lookup" && (
               <LookupPage
                 key={`lookup-${navSeq}`}
@@ -9372,6 +10571,16 @@ function AppInner() {
                 myDrugs={myDrugs}
                 setMyDrugs={setMyDrugs}
                 addToMyDrugs={addToMyDrugs}
+              />
+            )}
+            {isPatient && patientDrug && (
+              <BrandDetailModal
+                brand={patientDrug}
+                isStaff={false}
+                addToMyDrugs={addDrugToCabinet}
+                priceLow={0}
+                priceHigh={0}
+                onClose={() => setPatientDrug(null)}
               />
             )}
           </section>
@@ -9418,11 +10627,11 @@ function AppInner() {
               maxWidth: 520,
               margin: "0 auto",
               display: "grid",
-              gridTemplateColumns: `repeat(${tabs.length},1fr)`,
+              gridTemplateColumns: `repeat(${navTabs.length},1fr)`,
               gap: 8,
             }}
           >
-            {tabs.map((t) => {
+            {navTabs.map((t) => {
               const active = tab === t.id;
 
               return (
