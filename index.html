@@ -9,6 +9,18 @@
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; }
       @keyframes rxspin { to { transform: rotate(360deg); } }
       .rx-spin { animation: rxspin .7s linear infinite; }
+      /* Keyboard-only focus ring. :focus-visible never fires on mouse clicks,
+         so this is invisible to pointer users but restores a clear focus
+         indicator for keyboard nav despite inline outline:none. */
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible,
+      button:focus-visible,
+      a:focus-visible,
+      [role="button"]:focus-visible {
+        outline: 2px solid #1B6840 !important;
+        outline-offset: 2px;
+      }
     </style>
   </head>
   <body>
