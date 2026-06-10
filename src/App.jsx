@@ -1498,9 +1498,15 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
   const [showDD, setShowDD] = useState(false);
   const [selected, setSelected] = useState(null);
   const [reportDrug, setReportDrug] = useState(null);
+  const [addedIds, setAddedIds] = useState(() => new Set());
   const { isStaff } = useAuth();
   const { T } = useLang();
   const wrapRef = useRef();
+
+  function quickAdd(drug) {
+    addToMyDrugs && addToMyDrugs(drug);
+    setAddedIds((prev) => new Set(prev).add(drug.id));
+  }
 
   useEffect(() => {
     function h(e) {
@@ -1685,22 +1691,53 @@ function DrugSearch({ addToMyDrugs, initQuery }) {
                 </div>
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    background: cc(d.score) + "22",
-                    color: cc(d.score),
-                    border: `2px solid ${cc(d.score)}`,
+                    gap: 8,
                     flexShrink: 0,
                     marginLeft: 12,
                   }}
                 >
-                  {pct(d.score)}%
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      background: cc(d.score) + "22",
+                      color: cc(d.score),
+                      border: `2px solid ${cc(d.score)}`,
+                    }}
+                  >
+                    {pct(d.score)}%
+                  </div>
+                  {addToMyDrugs && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        quickAdd(d);
+                      }}
+                      disabled={addedIds.has(d.id)}
+                      title={addedIds.has(d.id) ? undefined : T.addMyDrugs}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "none",
+                        cursor: addedIds.has(d.id) ? "default" : "pointer",
+                        background: addedIds.has(d.id) ? "#e8f5e9" : C.primary,
+                        color: addedIds.has(d.id) ? C.success : "#fff",
+                      }}
+                    >
+                      {addedIds.has(d.id) ? T.addedBtn : T.addBtn}
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -3992,6 +4029,30 @@ function BrandRow({
             )}
           </div>
         </div>
+        {/* inline add — skip when no handler (guest brand lists pass null) */}
+        {addToMyDrugs && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAdd();
+            }}
+            disabled={added}
+            title={added ? undefined : T.addMyDrugs}
+            style={{
+              flexShrink: 0,
+              padding: "6px 10px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              border: "none",
+              cursor: added ? "default" : "pointer",
+              background: added ? "#e8f5e9" : C.primary,
+              color: added ? C.success : "#fff",
+            }}
+          >
+            {added ? T.addedBtn : T.addBtn}
+          </button>
+        )}
         {/* chevron hint */}
         <span
           style={{ color: C.muted, fontSize: 16, flexShrink: 0, opacity: 0.5 }}
