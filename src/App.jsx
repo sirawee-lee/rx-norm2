@@ -65,6 +65,9 @@ const LANG = {
     signOutTitle: "Sign out?",
     signOutMessage: "Are you sure you want to sign out from this account?",
     cancel: "Cancel",
+    removeMedTitle: "Remove medication?",
+    removeMedMsg: "Remove this drug from My Medications?",
+    removeBtn: "Remove",
     userProfile: "User Profile",
     userProfileDesc: "View and manage signed-in user information",
     scanHistory: "Scan History",
@@ -203,6 +206,9 @@ const LANG = {
     signOutTitle: "要登出嗎？",
     signOutMessage: "你確定要登出目前帳號嗎？",
     cancel: "取消",
+    removeMedTitle: "移除藥物？",
+    removeMedMsg: "要將此藥品從「我的藥物」移除嗎？",
+    removeBtn: "移除",
     userProfile: "使用者資料",
     userProfileDesc: "查看與管理已登入的使用者資訊",
     scanHistory: "掃描紀錄",
@@ -451,6 +457,113 @@ function Card({ children, style, onClick }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+// Reusable confirmation dialog for destructive/irreversible actions.
+// Esc cancels, Enter confirms, backdrop click cancels.
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  danger = true,
+  onConfirm,
+  onCancel,
+}) {
+  const { T } = useLang();
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onCancel();
+      else if (e.key === "Enter") onConfirm();
+    }
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onConfirm, onCancel]);
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.45)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: "100%",
+          maxWidth: 340,
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 22,
+          padding: 22,
+          boxShadow: "0 24px 60px rgba(0,0,0,.28)",
+          color: C.text,
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>
+          {title}
+        </div>
+        {message && (
+          <div
+            style={{
+              fontSize: 13,
+              color: C.muted,
+              marginBottom: 20,
+              lineHeight: 1.5,
+            }}
+          >
+            {message}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1,
+              padding: "11px 14px",
+              borderRadius: 14,
+              border: `1px solid ${C.border}`,
+              background: "#F8FAFC",
+              color: C.text,
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            {cancelLabel || T.cancel}
+          </button>
+          <button
+            onClick={onConfirm}
+            autoFocus
+            style={{
+              flex: 1,
+              padding: "11px 14px",
+              borderRadius: 14,
+              border: "none",
+              background: danger ? "#DC2626" : C.primary,
+              color: "#fff",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -6645,6 +6758,7 @@ function MyMeds({ meds, setMeds }) {
   const { isStaff } = useAuth();
   const { T } = useLang();
   const [selected, setSelected] = useState(null);
+  const [pendingRemove, setPendingRemove] = useState(null);
   const toggle = (id) =>
     setMeds((p) =>
       p.map((m) => (m.id === id ? { ...m, reminderOn: !m.reminderOn } : m)),
@@ -6701,6 +6815,18 @@ function MyMeds({ meds, setMeds }) {
           priceLow={0}
           priceHigh={0}
           onClose={() => setSelected(null)}
+        />
+      )}
+      {pendingRemove && (
+        <ConfirmDialog
+          title={T.removeMedTitle}
+          message={`${pendingRemove.ingredient} · ${pendingRemove.nameEN}`}
+          confirmLabel={T.removeBtn}
+          onConfirm={() => {
+            remove(pendingRemove.id);
+            setPendingRemove(null);
+          }}
+          onCancel={() => setPendingRemove(null)}
         />
       )}
       {meds.length >= 2 && <InteractionBanner meds={meds} />}
@@ -6795,7 +6921,7 @@ function MyMeds({ meds, setMeds }) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    remove(med.id);
+                    setPendingRemove(med);
                   }}
                   style={{
                     padding: "6px 12px",
@@ -6808,7 +6934,7 @@ function MyMeds({ meds, setMeds }) {
                     color: C.danger,
                   }}
                 >
-                  Remove
+                  {T.removeBtn}
                 </button>
               </div>
             </div>
