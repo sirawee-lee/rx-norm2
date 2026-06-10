@@ -24,28 +24,14 @@ import {
   loadDrugImages,
   getDrugImage,
   browseByATC,
+  dedupeBrands,
   DATA_VERSION,
 } from "./data.js";
 import { extractDrugLines, buildBulkText } from "./ocrExtract.js";
+import { runRemoteOcr, isRemoteOcrConfigured } from "./remoteOcr.js";
 
 // Medical color palette — deep clinical green, WHO/NHI standard
 // Primary: #1B6840 deep forest green · Dark: #13502F · Accent: #2A9D5C
-const D = {
-  primary: "#2DC76A",
-  primaryDark: "#1FAF55",
-  secondary: "#3A72CC",
-  accent: "#3AD47A",
-  bg: "#050F0A",
-  card: "#081A10",
-  text: "#E8F5EE",
-  muted: "#7AAE90",
-  border: "#102818",
-  danger: "#F87171",
-  warning: "#FBBF24",
-  success: "#2DC76A",
-  staffBg: "#0A1F12",
-};
-
 const C = {
   primary: "#1B6840",
   primaryDark: "#13502F",
@@ -4230,8 +4216,25 @@ function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
     return segs;
   }, [initAtc]);
 
+  // A full 7-char substance code (e.g. N06AB06 = Sertraline) identifies one
+  // substance. Clicking it in a drug card should open that substance's brands
+  // directly, not dump the whole 5-char chemical subgroup (all the SSRIs).
+  // browseByATC groups by ingredient *string*, and one substance often spans
+  // several spellings ("Sertraline" / "Sertraline Hydrochloride" / "… 20 Mg/Ml"),
+  // so we merge every variant sharing the exact code into one concept and open
+  // it. The breadcrumb still rests at the 5-char level so siblings stay one tap away.
+  const initConcept = useMemo(() => {
+    if (!initAtc || initAtc.length < 6) return null;
+    const groups = browseByATC(initAtc.toUpperCase());
+    if (groups.length === 0) return null;
+    if (groups.length === 1) return groups[0];
+    const primary = groups[0]; // browseByATC sorts by brandCount desc
+    const merged = dedupeBrands(groups.flatMap((g) => g.brands));
+    return { ...primary, brands: merged, brandCount: merged.length };
+  }, [initAtc]);
+
   const [path, setPath] = useState(initPath); // e.g. ['N','N05','N05A','N05AH']
-  const [selectedConcept, setSelectedConcept] = useState(null);
+  const [selectedConcept, setSelectedConcept] = useState(initConcept);
   const [detailBrand, setDetailBrand] = useState(null);
   const { T } = useLang();
   const { isStaff } = useAuth();
@@ -5447,56 +5450,73 @@ function useOCR() {
     setResult(null);
 
     try {
-      const { createWorker } = await import("tesseract.js");
+      let mergedText = "";
 
-      setStage("loading");
-
-      const worker = await createWorker(["eng", "chi_tra"], 1, {
-        logger: (m) => {
-          if (m.status === "recognizing text") {
-            setStage("recognizing");
-            setProgress(Math.round(m.progress * 100));
-          } else {
-            setOcrStatus(m.status || "");
-          }
-        },
-      });
-
-      await worker.setParameters({
-        tessedit_pageseg_mode: "6",
-        preserve_interword_spaces: "1",
-        // Images are upscaled before OCR; pin DPI so Tesseract stops guessing
-        // (a wrong DPI estimate hurts CJK far more than Latin).
-        user_defined_dpi: "300",
-      });
-
-      // standard + darkText → binarized passes tuned for Latin drug names.
-      // cjk → grayscale (non-binarized) pass tuned for Traditional Chinese.
-      const modes = ["standard", "darkText", "cjk"];
-      const texts = [];
-
-      for (const mode of modes) {
-        setStage("preprocessing");
-        const processedBlob = await preprocessForOCR(imageFile, mode);
-        const processedUrl = URL.createObjectURL(processedBlob);
-
+      if (isRemoteOcrConfigured()) {
+        // ── Primary: wisli PaddleOCR server (PP-StructureV3) ────────────────
+        // Far more accurate on real-world photographed Traditional-Chinese
+        // prescriptions than in-browser Tesseract. Sends the raw image; the
+        // server returns structured elements that we join into reading order.
+        setStage("loading");
+        setOcrStatus("Sending image to PaddleOCR server…");
         setStage("recognizing");
-        const {
-          data: { text },
-        } = await worker.recognize(processedUrl);
+        setProgress(35);
+        const remote = await runRemoteOcr(imageFile);
+        setProgress(100);
+        mergedText = remote.text;
+      } else {
+        // ── Offline fallback: Tesseract.js multi-pass (no server configured) ─
+        const { createWorker } = await import("tesseract.js");
 
-        if (text && text.trim()) {
-          texts.push(text.trim());
+        setStage("loading");
+
+        const worker = await createWorker(["eng", "chi_tra"], 1, {
+          logger: (m) => {
+            if (m.status === "recognizing text") {
+              setStage("recognizing");
+              setProgress(Math.round(m.progress * 100));
+            } else {
+              setOcrStatus(m.status || "");
+            }
+          },
+        });
+
+        await worker.setParameters({
+          tessedit_pageseg_mode: "6",
+          preserve_interword_spaces: "1",
+          // Images are upscaled before OCR; pin DPI so Tesseract stops guessing
+          // (a wrong DPI estimate hurts CJK far more than Latin).
+          user_defined_dpi: "300",
+        });
+
+        // standard + darkText → binarized passes tuned for Latin drug names.
+        // cjk → grayscale (non-binarized) pass tuned for Traditional Chinese.
+        const modes = ["standard", "darkText", "cjk"];
+        const texts = [];
+
+        for (const mode of modes) {
+          setStage("preprocessing");
+          const processedBlob = await preprocessForOCR(imageFile, mode);
+          const processedUrl = URL.createObjectURL(processedBlob);
+
+          setStage("recognizing");
+          const {
+            data: { text },
+          } = await worker.recognize(processedUrl);
+
+          if (text && text.trim()) {
+            texts.push(text.trim());
+          }
+
+          URL.revokeObjectURL(processedUrl);
         }
 
-        URL.revokeObjectURL(processedUrl);
+        await worker.terminate();
+
+        mergedText = [...new Set(texts)].join("\n\n--- OCR PASS ---\n\n");
       }
 
-      await worker.terminate();
-
       setStage("matching");
-
-      const mergedText = [...new Set(texts)].join("\n\n--- OCR PASS ---\n\n");
 
       const cleanedText = cleanOCRText(mergedText);
       const matched = matchOcrText(cleanedText);
@@ -7067,8 +7087,6 @@ function ScanHistory({ myDrugs, setMyDrugs, addToMyDrugs }) {
 }
 
 function SettingsPage({
-  darkMode,
-  setDarkMode,
   language,
   setLanguage,
   T,
@@ -7078,7 +7096,7 @@ function SettingsPage({
 }) {
   const { isAdmin, isStaff } = useAuth();
   const isSignedIn = isAdmin || isStaff;
-  const theme = darkMode ? D : C;
+  const theme = C;
   const [settingsSubPage, setSettingsSubPage] = useState("main");
 
   if (settingsSubPage === "profile") {
@@ -7088,7 +7106,7 @@ function SettingsPage({
         theme={theme}
         onBack={() => setSettingsSubPage("main")}
       >
-        <UserProfilePage darkMode={darkMode} />
+        <UserProfilePage />
       </SettingsSubLayout>
     );
   }
@@ -7148,21 +7166,18 @@ function SettingsPage({
         {isSignedIn && (
           <>
             <SettingsMenuItem
-              darkMode={darkMode}
               title="User Profile"
               desc="View and manage signed-in user information"
               onClick={() => setSettingsSubPage("profile")}
             />
 
             <SettingsMenuItem
-              darkMode={darkMode}
               title="Scan History"
               desc="View prescription scan records and add important drugs"
               onClick={() => setSettingsSubPage("history")}
             />
 
             <SettingsMenuItem
-              darkMode={darkMode}
               title="My Drugs"
               desc="Manage saved medications and reminders"
               onClick={() => setSettingsSubPage("myDrugs")}
@@ -7170,24 +7185,10 @@ function SettingsPage({
           </>
         )}
 
-        <div style={getSettingsCardStyle(darkMode)}>
+        <div style={getSettingsCardStyle()}>
           <div>
-            <div style={getSettingsTitleStyle(darkMode)}>{T.mode}</div>
-            <div style={getSettingsDescStyle(darkMode)}>{T.modeDesc}</div>
-          </div>
-
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            style={getSettingsButtonStyle()}
-          >
-            {darkMode ? T.dark : T.light}
-          </button>
-        </div>
-
-        <div style={getSettingsCardStyle(darkMode)}>
-          <div>
-            <div style={getSettingsTitleStyle(darkMode)}>{T.language}</div>
-            <div style={getSettingsDescStyle(darkMode)}>{T.languageDesc}</div>
+            <div style={getSettingsTitleStyle()}>{T.language}</div>
+            <div style={getSettingsDescStyle()}>{T.languageDesc}</div>
           </div>
 
           <select
@@ -7213,34 +7214,32 @@ function SettingsPage({
   );
 }
 
-function getSettingsCardStyle(darkMode) {
+function getSettingsCardStyle() {
   return {
-    background: darkMode ? D.card : C.card,
-    border: `1px solid ${darkMode ? D.border : C.border}`,
+    background: C.card,
+    border: `1px solid ${C.border}`,
     borderRadius: 18,
     padding: "16px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    boxShadow: darkMode
-      ? "0 8px 22px rgba(0,0,0,.24)"
-      : "0 6px 18px rgba(15,23,42,.05)",
+    boxShadow: "0 6px 18px rgba(15,23,42,.05)",
   };
 }
 
-function getSettingsTitleStyle(darkMode) {
+function getSettingsTitleStyle() {
   return {
     fontSize: 15,
     fontWeight: 700,
-    color: darkMode ? D.text : C.text,
+    color: C.text,
   };
 }
 
-function getSettingsDescStyle(darkMode) {
+function getSettingsDescStyle() {
   return {
     fontSize: 12,
-    color: darkMode ? D.muted : C.muted,
+    color: C.muted,
     marginTop: 4,
   };
 }
@@ -8282,9 +8281,9 @@ function AdminDashboard() {
   );
 }
 
-function UserProfilePage({ darkMode }) {
+function UserProfilePage() {
   const { user, isAdmin, isStaff } = useAuth();
-  const theme = darkMode ? D : C;
+  const theme = C;
 
   if (!user) {
     return (
@@ -8418,12 +8417,12 @@ function ProfilePermission({ active, text }) {
   );
 }
 
-function SettingsMenuItem({ darkMode, title, desc, onClick }) {
+function SettingsMenuItem({ title, desc, onClick }) {
   return (
-    <div style={getSettingsCardStyle(darkMode)}>
+    <div style={getSettingsCardStyle()}>
       <div>
-        <div style={getSettingsTitleStyle(darkMode)}>{title}</div>
-        <div style={getSettingsDescStyle(darkMode)}>{desc}</div>
+        <div style={getSettingsTitleStyle()}>{title}</div>
+        <div style={getSettingsDescStyle()}>{desc}</div>
       </div>
 
       <button onClick={onClick} style={getSettingsButtonStyle()}>
@@ -8473,13 +8472,16 @@ function AppInner() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [nhiCount, setNhiCount] = useState(0);
   const [imgCount, setImgCount] = useState(0);
-  const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState("zhTW");
   const [ddiPreset, setDdiPreset] = useState(null);
   const [toast, setToast] = useState("");
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupAtc, setLookupAtc] = useState("");
   const [bulkText, setBulkText] = useState("");
+  // Bumped on every cross-navigation (click ATC / generic name / bulk handoff)
+  // so the destination page remounts fresh with the new query instead of
+  // keeping stale init props. Used as a React `key` on the routed pages below.
+  const [navSeq, setNavSeq] = useState(0);
   const [myDrugs, setMyDrugs] = useState([
     { ...DRUGS[6], times: ["09:00"], reminderOn: true },
     { ...DRUGS[9], times: ["08:00", "12:00", "18:00"], reminderOn: true },
@@ -8488,7 +8490,7 @@ function AppInner() {
 
   const { isAdmin, isStaff, logout } = useAuth();
 
-  const theme = darkMode ? D : C;
+  const theme = C;
   const isSignedIn = isAdmin || isStaff;
   const T = LANG[language];
 
@@ -8514,6 +8516,7 @@ function AppInner() {
       setBulkText("");
       // staff/admin → ingredient lookup; guest → search tab
       setTab(isStaff ? "lookup" : "search");
+      setNavSeq((n) => n + 1);
     }
     window.addEventListener("navigate-ingredient", h);
     return () => window.removeEventListener("navigate-ingredient", h);
@@ -8521,14 +8524,26 @@ function AppInner() {
 
   useEffect(() => {
     function h(e) {
-      setLookupAtc(e.detail.atc);
-      setLookupQuery("");
-      setBulkText("");
-      setTab("lookup");
+      const atc = e.detail.atc;
+      // staff/admin → ATC Browser (drills down the WHO tree to this code).
+      // guest → search tab; searchDrugs() already matches the ATC field, so
+      // they land on the same "all brands sharing this ATC" result set.
+      if (isStaff) {
+        setLookupAtc(atc);
+        setLookupQuery("");
+        setBulkText("");
+        setTab("lookup");
+      } else {
+        setLookupQuery(atc);
+        setLookupAtc("");
+        setBulkText("");
+        setTab("search");
+      }
+      setNavSeq((n) => n + 1);
     }
     window.addEventListener("navigate-atc", h);
     return () => window.removeEventListener("navigate-atc", h);
-  }, []);
+  }, [isStaff]);
 
   useEffect(() => {
     function h(e) {
@@ -8536,6 +8551,7 @@ function AppInner() {
       setLookupQuery("");
       setLookupAtc("");
       setTab("lookup"); // Bulk lives inside the staff-only Lookup tab
+      setNavSeq((n) => n + 1);
     }
     window.addEventListener("navigate-bulk", h);
     return () => window.removeEventListener("navigate-bulk", h);
@@ -8613,7 +8629,7 @@ function AppInner() {
           "--border": theme.border,
 
           minHeight: "100vh",
-          background: darkMode ? "#050F0A" : "#EBF5EE",
+          background: "#EBF5EE",
           paddingBottom: 96,
           color: theme.text,
           transition: "all .2s ease",
@@ -8624,14 +8640,10 @@ function AppInner() {
             position: "sticky",
             top: 0,
             zIndex: 100,
-            background: darkMode
-              ? "rgba(6,17,26,.93)"
-              : "rgba(255,255,255,.95)",
+            background: "rgba(255,255,255,.95)",
             backdropFilter: "blur(20px)",
-            borderBottom: `2px solid ${darkMode ? "#1A3518" : C.primary}`,
-            boxShadow: darkMode
-              ? "0 4px 24px rgba(0,0,0,.35)"
-              : "0 2px 16px rgba(27,104,64,.10)",
+            borderBottom: `2px solid ${C.primary}`,
+            boxShadow: "0 2px 16px rgba(27,104,64,.10)",
           }}
         >
           <div
@@ -8700,7 +8712,7 @@ function AppInner() {
                 <div
                   style={{
                     fontSize: 10,
-                    color: darkMode ? "#7AAAB8" : "#4A6B78",
+                    color: "#4A6B78",
                     fontWeight: 500,
                     marginTop: 1,
                     letterSpacing: 0.4,
@@ -8736,10 +8748,10 @@ function AppInner() {
                         fontWeight: 700,
                         padding: "1px 6px",
                         borderRadius: 3,
-                        background: darkMode ? "#122838" : "#D6EDEB",
-                        color: darkMode ? "#2EC4B6" : C.primary,
+                        background: "#D6EDEB",
+                        color: C.primary,
                         letterSpacing: 0.3,
-                        border: `1px solid ${darkMode ? "#1A3A4A" : "#A8D0CE"}`,
+                        border: "1px solid #A8D0CE",
                       }}
                     >
                       NHI {DATA_VERSION.date}
@@ -8861,7 +8873,7 @@ function AppInner() {
                     padding: "11px 14px",
                     borderRadius: 14,
                     border: `1px solid ${theme.border}`,
-                    background: darkMode ? "#1E293B" : "#F8FAFC",
+                    background: "#F8FAFC",
                     color: theme.text,
                     fontWeight: 800,
                     cursor: "pointer",
@@ -8907,20 +8919,23 @@ function AppInner() {
               border: `1px solid ${theme.border}`,
               borderRadius: 24,
               padding: 16,
-              boxShadow: darkMode
-                ? "0 12px 32px rgba(0,0,0,.22)"
-                : "0 12px 32px rgba(15,23,42,.07)",
+              boxShadow: "0 12px 32px rgba(15,23,42,.07)",
               minHeight: "calc(100vh - 190px)",
               transition: "all .2s ease",
               color: theme.text,
             }}
           >
             {tab === "search" && (
-              <DrugSearch addToMyDrugs={addToMyDrugs} initQuery={lookupQuery} />
+              <DrugSearch
+                key={`search-${navSeq}`}
+                addToMyDrugs={addToMyDrugs}
+                initQuery={lookupQuery}
+              />
             )}
             {tab === "scan" && <ScanRx addToMyDrugs={addToMyDrugs} />}
             {tab === "lookup" && (
               <LookupPage
+                key={`lookup-${navSeq}`}
                 addToMyDrugs={addToMyDrugs}
                 nhiCount={nhiCount}
                 imgCount={imgCount}
@@ -8933,8 +8948,6 @@ function AppInner() {
             {tab === "admin" && <AdminDashboard />}
             {tab === "settings" && (
               <SettingsPage
-                darkMode={darkMode}
-                setDarkMode={setDarkMode}
                 language={language}
                 setLanguage={setLanguage}
                 T={T}
@@ -8954,7 +8967,7 @@ function AppInner() {
               bottom: 88,
               transform: "translateX(-50%)",
               zIndex: 3000,
-              background: darkMode ? "#1E293B" : "#0F172A",
+              background: "#0F172A",
               color: "#fff",
               padding: "11px 18px",
               borderRadius: 999,
@@ -8975,14 +8988,10 @@ function AppInner() {
             right: 0,
             bottom: 0,
             zIndex: 250,
-            background: darkMode
-              ? "rgba(6,17,26,.95)"
-              : "rgba(255,255,255,.97)",
+            background: "rgba(255,255,255,.97)",
             backdropFilter: "blur(20px)",
-            borderTop: `2px solid ${darkMode ? "#1A3518" : C.primary}`,
-            boxShadow: darkMode
-              ? "0 -8px 24px rgba(0,0,0,.40)"
-              : "0 -4px 20px rgba(27,104,64,.12)",
+            borderTop: `2px solid ${C.primary}`,
+            boxShadow: "0 -4px 20px rgba(27,104,64,.12)",
             padding: "7px 12px max(7px, env(safe-area-inset-bottom))",
           }}
         >
@@ -9007,14 +9016,10 @@ function AppInner() {
                   style={{
                     height: 50,
                     border: "none",
-                    borderRadius: 18,
+                    borderRadius: 10,
                     cursor: "pointer",
                     fontSize: 22,
-                    background: active
-                      ? darkMode
-                        ? "#0A1F10"
-                        : "#D4EDE0"
-                      : "transparent",
+                    background: active ? "#D4EDE0" : "transparent",
                     color: active ? theme.primary : theme.muted,
                     display: "flex",
                     alignItems: "center",
@@ -9023,11 +9028,8 @@ function AppInner() {
                     borderBottom: active
                       ? `2px solid ${theme.primary}`
                       : "2px solid transparent",
-                    borderRadius: 10,
                     boxShadow: active
-                      ? darkMode
-                        ? "0 4px 14px rgba(45,199,106,.15)"
-                        : "0 4px 14px rgba(27,104,64,.14)"
+                      ? "0 4px 14px rgba(27,104,64,.14)"
                       : "none",
                     transition: "all .18s ease",
                   }}
