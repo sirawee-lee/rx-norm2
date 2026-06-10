@@ -26,6 +26,7 @@ import {
   browseByATC,
   DATA_VERSION,
 } from "./data.js";
+import { extractDrugLines, buildBulkText } from "./ocrExtract.js";
 
 // Medical color palette — deep clinical green, WHO/NHI standard
 // Primary: #1B6840 deep forest green · Dark: #13502F · Accent: #2A9D5C
@@ -4544,16 +4545,17 @@ function ATCBrowser({ addToMyDrugs, nhiCount, initAtc }) {
 }
 
 // ── Bulk Search (RxMix-style) ─────────────────────────────────────────────
-function BulkSearch() {
-  const [text, setText] = useState("");
+function BulkSearch({ initText }) {
+  const [text, setText] = useState(initText || "");
   const [rows, setRows] = useState(null);
   const [viewConcept, setViewConcept] = useState(null);
   const [detailBrand, setDetailBrand] = useState(null);
   const { T } = useLang();
   const { isStaff } = useAuth();
 
-  function runBulk() {
-    const lines = text
+  function runBulk(src) {
+    const source = typeof src === "string" ? src : text;
+    const lines = source
       .split(/[\n,]+/)
       .map((s) => s.trim())
       .filter(Boolean);
@@ -4564,6 +4566,12 @@ function BulkSearch() {
     });
     setRows(results);
   }
+
+  // Auto-run when arriving from the OCR scan flow with a prefilled list.
+  useEffect(() => {
+    if (initText && initText.trim()) runBulk(initText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function exportBulkCSV() {
     if (!rows) return;
@@ -4846,8 +4854,11 @@ function LookupPage({
   imgCount,
   initQuery,
   initAtc,
+  initBulk,
 }) {
-  const [mode, setMode] = useState(initAtc ? "browse" : "search");
+  const [mode, setMode] = useState(
+    initBulk ? "bulk" : initAtc ? "browse" : "search",
+  );
   const { T } = useLang();
   const modes = [
     { id: "search", label: T.modeSearch, icon: "🔍" },
@@ -4902,7 +4913,7 @@ function LookupPage({
           initAtc={initAtc}
         />
       )}
-      {mode === "bulk" && <BulkSearch />}
+      {mode === "bulk" && <BulkSearch initText={initBulk} />}
     </div>
   );
 }
@@ -5339,7 +5350,30 @@ async function preprocessForOCR(file, mode = "standard") {
             v = Math.min(255, Math.max(0, (v - 115) * 1.7 + 115));
           }
 
+          if (mode === "cjk") {
+            // Gentle contrast only — preserve stroke gradients for dense
+            // Traditional Chinese glyphs.
+            v = Math.min(255, Math.max(0, (v - 128) * 1.2 + 128));
+          }
+
           gray[i] = v;
+        }
+
+        // CJK pass: keep GRAYSCALE (no Otsu binarization). Hard black/white
+        // thresholding merges/erodes the many thin strokes of Traditional
+        // Chinese characters and wrecks chi_tra accuracy. Latin text tolerates
+        // binarization; CJK does not — so this pass feeds Tesseract grayscale.
+        if (mode === "cjk") {
+          for (let i = 0; i < n; i++) {
+            const v = gray[i];
+            d[i * 4] = v;
+            d[i * 4 + 1] = v;
+            d[i * 4 + 2] = v;
+            d[i * 4 + 3] = 255;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          canvas.toBlob((blob) => resolve(blob || file), "image/png");
+          return;
         }
 
         const hist = new Int32Array(256);
@@ -5431,9 +5465,14 @@ function useOCR() {
       await worker.setParameters({
         tessedit_pageseg_mode: "6",
         preserve_interword_spaces: "1",
+        // Images are upscaled before OCR; pin DPI so Tesseract stops guessing
+        // (a wrong DPI estimate hurts CJK far more than Latin).
+        user_defined_dpi: "300",
       });
 
-      const modes = ["standard", "contrast", "darkText"];
+      // standard + darkText → binarized passes tuned for Latin drug names.
+      // cjk → grayscale (non-binarized) pass tuned for Traditional Chinese.
+      const modes = ["standard", "darkText", "cjk"];
       const texts = [];
 
       for (const mode of modes) {
@@ -5461,10 +5500,14 @@ function useOCR() {
 
       const cleanedText = cleanOCRText(mergedText);
       const matched = matchOcrText(cleanedText);
+      // Pre-process raw OCR → clean candidate drug lines (name + strength +
+      // form) ready to push into Bulk lookup / ingredient search.
+      const detected = extractDrugLines(mergedText);
 
       setResult({
         rawText: cleanedText,
         matched,
+        detected,
       });
 
       setStage("done");
@@ -5492,6 +5535,7 @@ function useOCR() {
     setResult({
       rawText: DEMO_OCR_RESULT.rawText,
       matched: DEMO_OCR_RESULT.matched,
+      detected: extractDrugLines(DEMO_OCR_RESULT.rawText),
     });
     setStage("done");
   }
@@ -6050,8 +6094,29 @@ function ScanRx({ addToMyDrugs }) {
     );
 
   const { rawText, matched } = ocr.result;
+  const detected = ocr.result.detected || [];
   const highConf = matched.filter((m) => m.confidence >= LOW_CONF);
   const lowConf = matched.filter((m) => m.confidence < LOW_CONF);
+
+  // Route a cleaned drug string into the existing search flow.
+  // navigate-ingredient → staff land on Lookup, guests on Drug Search.
+  function searchCleaned(query) {
+    if (!query) return;
+    window.dispatchEvent(
+      new CustomEvent("navigate-ingredient", { detail: { query } }),
+    );
+  }
+
+  function sendAllToBulk() {
+    const text = buildBulkText(detected);
+    if (!text) return;
+    window.dispatchEvent(new CustomEvent("navigate-bulk", { detail: { text } }));
+  }
+
+  function copyCleaned() {
+    const text = buildBulkText(detected);
+    if (text && navigator.clipboard) navigator.clipboard.writeText(text);
+  }
 
   function DrugResultCard({ drug, confidence }) {
     return (
@@ -6246,6 +6311,119 @@ function ScanRx({ addToMyDrugs }) {
           )}
         </div>
       </Card>
+
+      {detected.length > 0 && (
+        <Card style={{ background: "#f8fafc", border: `1px solid ${C.border}` }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>
+              🧹 Cleaned drug list ({detected.length})
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {isStaff && (
+                <button
+                  onClick={sendAllToBulk}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: "none",
+                    background: C.primary,
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  📋 Send all to Bulk
+                </button>
+              )}
+              <button
+                onClick={copyCleaned}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: `1px solid ${C.border}`,
+                  background: "#fff",
+                  color: C.text,
+                  cursor: "pointer",
+                }}
+              >
+                ⧉ Copy
+              </button>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10 }}>
+            Pre-processed from OCR — drug name + strength only. Tap a row to
+            search it.
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {detected.map((d, i) => (
+              <div
+                key={`${d.name}-${i}`}
+                onClick={() => searchCleaned(d.searchText)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  background: "#fff",
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10,
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{d.name}</span>
+                  {d.strength && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: C.primary,
+                      }}
+                    >
+                      {d.strength}
+                    </span>
+                  )}
+                  {d.form && (
+                    <span style={{ marginLeft: 6, fontSize: 11, color: C.muted }}>
+                      {d.form}
+                    </span>
+                  )}
+                  {d.zh && (
+                    <span style={{ marginLeft: 6, fontSize: 11, color: C.muted }}>
+                      {d.zh}
+                    </span>
+                  )}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: C.primary,
+                    flexShrink: 0,
+                  }}
+                >
+                  🔍 Search
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {matched.length === 0 && (
         <Card style={{ textAlign: "center", padding: 32, color: C.muted }}>
@@ -8301,6 +8479,7 @@ function AppInner() {
   const [toast, setToast] = useState("");
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupAtc, setLookupAtc] = useState("");
+  const [bulkText, setBulkText] = useState("");
   const [myDrugs, setMyDrugs] = useState([
     { ...DRUGS[6], times: ["09:00"], reminderOn: true },
     { ...DRUGS[9], times: ["08:00", "12:00", "18:00"], reminderOn: true },
@@ -8332,6 +8511,7 @@ function AppInner() {
     function h(e) {
       setLookupQuery(e.detail.query);
       setLookupAtc("");
+      setBulkText("");
       // staff/admin → ingredient lookup; guest → search tab
       setTab(isStaff ? "lookup" : "search");
     }
@@ -8343,10 +8523,22 @@ function AppInner() {
     function h(e) {
       setLookupAtc(e.detail.atc);
       setLookupQuery("");
+      setBulkText("");
       setTab("lookup");
     }
     window.addEventListener("navigate-atc", h);
     return () => window.removeEventListener("navigate-atc", h);
+  }, []);
+
+  useEffect(() => {
+    function h(e) {
+      setBulkText(e.detail.text || "");
+      setLookupQuery("");
+      setLookupAtc("");
+      setTab("lookup"); // Bulk lives inside the staff-only Lookup tab
+    }
+    window.addEventListener("navigate-bulk", h);
+    return () => window.removeEventListener("navigate-bulk", h);
   }, []);
 
   useEffect(() => {
@@ -8734,6 +8926,7 @@ function AppInner() {
                 imgCount={imgCount}
                 initQuery={lookupQuery}
                 initAtc={lookupAtc}
+                initBulk={bulkText}
               />
             )}
             {tab === "interact" && <DrugInteractionCenter preset={ddiPreset} />}

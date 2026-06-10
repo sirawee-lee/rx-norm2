@@ -404,6 +404,17 @@ function lev(a, b) {
   return row[n]
 }
 
+// All distinct length-n windows of consecutive Han characters in `text`.
+// Used for fuzzy Traditional-Chinese matching (CJK OCR is rarely perfect).
+function hanWindowSet(text, n) {
+  const set = new Set()
+  const runs = text.match(/[一-鿿]{2,}/g) || []
+  for (const run of runs) {
+    for (let s = 0; s + n <= run.length; s++) set.add(run.slice(s, s + n))
+  }
+  return set
+}
+
 // Noise words that appear on packaging/forms but are NOT drug names
 const OCR_NOISE = new Set([
   'SUPPLY','WITHOUT','PRESCRIPTION','ILLEGAL','KEEP','REACH','CHILDREN','PLEASE',
@@ -468,6 +479,8 @@ export function matchOcrText(rawText) {
   const upper = rawText.toUpperCase()
   const { tokens, parenBrands } = extractOcrCandidates(rawText)
   const tokenSet = new Set(tokens)
+  // 4-char Han windows from the OCR text, computed once for fuzzy CJK matching.
+  const rawHan4 = hanWindowSet(rawText, 4)
 
   const scored = []
 
@@ -541,6 +554,17 @@ export function matchOcrText(rawText) {
       for (let len = Math.min(4, han.length); len >= 3 && !found; len--) {
         for (let s = 0; s <= han.length - len; s++) {
           if (rawText.includes(han.slice(s, s + len))) { score += len + 2; found = true; break }
+        }
+      }
+      // Fuzzy fallback: tolerate ONE mis-recognised character on a 4-Han window.
+      // Lower weight (+3) and length-4 minimum keep false positives in check —
+      // a lone fuzzy hit can't clear the score>=6 threshold on its own.
+      if (!found && han.length >= 4 && rawHan4.size) {
+        for (let s = 0; s <= han.length - 4 && !found; s++) {
+          const seg = han.slice(s, s + 4)
+          for (const w of rawHan4) {
+            if (lev(w, seg) === 1) { score += 3; found = true; break }
+          }
         }
       }
     }
